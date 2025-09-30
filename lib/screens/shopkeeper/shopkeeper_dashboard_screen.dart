@@ -2019,7 +2019,7 @@ class _ShopkeeperDashboardScreenState extends State<ShopkeeperDashboardScreen>
                     CircleAvatar(
                       backgroundColor: const Color(0xFFB5C7F7),
                       child: Text(
-                        store['name'][0].toUpperCase(),
+                        (store['name'] as String?)?.isNotEmpty == true ? store['name'][0].toUpperCase() : 'S',
                         style: const TextStyle(
                           color: Color(0xFF22223B),
                           fontWeight: FontWeight.bold,
@@ -3013,18 +3013,25 @@ class _ShopkeeperDashboardScreenState extends State<ShopkeeperDashboardScreen>
   }
 
   Widget _buildAddProductForm() {
-    final nameController = TextEditingController();
-    final priceController = TextEditingController();
-    final quantityController = TextEditingController();
-    final descriptionController = TextEditingController();
-    
-    String selectedCategory = Provider.of<ProductProvider>(context, listen: false).availableCategories.first;
-    String selectedMaterial = Provider.of<ProductProvider>(context, listen: false).availableMaterials.first;
-    Color selectedColor = Provider.of<ProductProvider>(context, listen: false).availableColors.first;
-    IconData selectedIcon = Provider.of<ProductProvider>(context, listen: false).availableIcons.first;
+    // State variables - these will persist across rebuilds
+    String? selectedCategory;
+    String? selectedMaterial;
+    Color? selectedColor;
+    IconData? selectedIcon;
     
     return StatefulBuilder(
       builder: (context, setState) {
+        // Initialize controllers
+        final nameController = TextEditingController();
+        final priceController = TextEditingController();
+        final quantityController = TextEditingController();
+        final descriptionController = TextEditingController();
+        
+        // Initialize selections only once
+        selectedCategory ??= Provider.of<ProductProvider>(context, listen: false).availableCategories.first;
+        selectedMaterial ??= Provider.of<ProductProvider>(context, listen: false).availableMaterials.first;
+        selectedColor ??= Provider.of<ProductProvider>(context, listen: false).availableColors.first;
+        selectedIcon ??= Provider.of<ProductProvider>(context, listen: false).availableIcons.first;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -3221,91 +3228,100 @@ class _ShopkeeperDashboardScreenState extends State<ShopkeeperDashboardScreen>
             const SizedBox(height: 20),
             
             // Color and Icon Selection
-            Text(
-              'Product Appearance',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF22223B),
-              ),
-            ),
-            const SizedBox(height: 12),
-            
-            // Color Selection
-            Text(
-              'Choose Color:',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF22223B),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: Provider.of<ProductProvider>(context, listen: false).availableColors.map((color) {
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selectedColor = color;
-                    });
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selectedColor == color ? Colors.black : Colors.transparent,
-                        width: 3,
+            StatefulBuilder(
+              builder: (BuildContext context, StateSetter setAppearanceState) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Product Appearance',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF22223B),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Icon Selection
-            Text(
-              'Choose Icon:',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF22223B),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: Provider.of<ProductProvider>(context, listen: false).availableIcons.map((icon) {
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selectedIcon = icon;
-                    });
-                  },
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: selectedIcon == icon ? selectedColor.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: selectedIcon == icon ? selectedColor : Colors.transparent,
-                        width: 2,
+                    const SizedBox(height: 12),
+                    
+                    // Color Selection
+                    Text(
+                      'Choose Color:',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF22223B),
                       ),
                     ),
-                    child: Icon(
-                      icon,
-                      color: selectedIcon == icon ? selectedColor : Colors.grey,
-                      size: 24,
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      children: Provider.of<ProductProvider>(context, listen: false).availableColors.map((color) {
+                        return GestureDetector(
+                          onTap: () {
+                            setAppearanceState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selectedColor == color ? Colors.black : Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Icon Selection
+                    Text(
+                      'Choose Icon:',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF22223B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      children: Provider.of<ProductProvider>(context, listen: false).availableIcons.map((icon) {
+                        return GestureDetector(
+                          onTap: () {
+                            setAppearanceState(() {
+                              selectedIcon = icon;
+                            });
+                          },
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: selectedIcon == icon ? (selectedColor?.withOpacity(0.2) ?? Colors.blue.withOpacity(0.2)) : Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selectedIcon == icon ? (selectedColor ?? Colors.blue) : Colors.transparent,
+                                width: 2,
+                              ),
+                            ),
+                            child: Icon(
+                              icon,
+                              color: selectedIcon == icon ? selectedColor : Colors.grey,
+                              size: 24,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 );
-              }).toList(),
+              },
             ),
             
             const SizedBox(height: 30),
@@ -3321,8 +3337,8 @@ class _ShopkeeperDashboardScreenState extends State<ShopkeeperDashboardScreen>
                       descriptionController.text.isNotEmpty) {
                     
                     // Convert Color to hex string and IconData to string
-                    String colorHex = '#${selectedColor.value.toRadixString(16).padLeft(8, '0')}';
-                    String iconString = _getIconString(selectedIcon);
+                    String colorHex = '#${(selectedColor?.value ?? Colors.blue.value).toRadixString(16).padLeft(8, '0')}';
+                    String iconString = _getIconString(selectedIcon!);
                     
                     final newProduct = {
                       'name': nameController.text,

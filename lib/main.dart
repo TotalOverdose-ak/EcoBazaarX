@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 // import 'package:firebase_core/firebase_core.dart'; // DISABLED - Using Spring Boot Backend
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -17,23 +18,12 @@ import 'providers/product_view_provider.dart';
 import 'providers/eco_challenges_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/orders_provider.dart';
+import 'widgets/app_initializer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Firebase initialization DISABLED - Using Spring Boot Backend
-  // await Firebase.initializeApp(
-  //   options: FirebaseOptions(
-  //     apiKey: FirebaseConfig.config['apiKey'] as String,
-  //     authDomain: FirebaseConfig.config['authDomain'] as String,
-  //     projectId: FirebaseConfig.config['projectId'] as String,
-  //     storageBucket: FirebaseConfig.config['storageBucket'] as String,
-  //     messagingSenderId: FirebaseConfig.config['messagingSenderId'] as String,
-  //     appId: FirebaseConfig.config['appId'] as String,
-  //     measurementId: FirebaseConfig.config['measurementId'] as String,
-  //   ),
-  // );
-  
+
   print('EcoBazaarX App starting with Spring Boot backend (MySQL database)...');
   
   runApp(const EcoBazaarXApp());
@@ -57,36 +47,46 @@ class EcoBazaarXApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => OrdersProvider()),
       ],
-      child: Consumer4<SettingsProvider, ProductProvider, StoreProvider, WishlistProvider>(
-        builder: (context, settingsProvider, productProvider, storeProvider, wishlistProvider, child) {
+      child: Consumer3<SettingsProvider, ProductProvider, StoreProvider>(
+        builder: (context, settingsProvider, productProvider, storeProvider, child) {
           final isDarkMode = settingsProvider.darkModeEnabled;
-          
-          // Initialize products, stores, and wishlist when app starts
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (productProvider.allProducts.isEmpty && !productProvider.isLoading) {
-              productProvider.initializeProducts();
-            }
-            if (storeProvider.allStores.isEmpty && !storeProvider.isLoading) {
-              storeProvider.initializeStores();
-            }
-            // Initialize wishlist for current user (if logged in)
-            final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
-            if (authProvider.isAuthenticated && authProvider.userId != null && wishlistProvider.wishlistItems.isEmpty && !wishlistProvider.isLoading) {
-              wishlistProvider.initializeWishlist(authProvider.userId!);
-            }
-            // Initialize settings for current user (if logged in)
-            if (authProvider.isAuthenticated && authProvider.userId != null) {
-              settingsProvider.refreshSettings();
-            }
-          });
           
           return MaterialApp(
             title: 'EcoBazaarX',
             debugShowCheckedModeBanner: false,
+            home: const AppInitializer(),
             theme: ThemeData(
               primarySwatch: Colors.blue,
               primaryColor: const Color(0xFF2196F3),
-              fontFamily: 'Roboto', // Use a standard font
+              textTheme: GoogleFonts.robotoTextTheme().copyWith(
+                // Define fallback fonts for emoji support with proper styling
+                headlineLarge: GoogleFonts.roboto( 
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : const Color(0xFF1A1A1A),
+                ).copyWith(
+                  fontFamilyFallback: const ['Noto Color Emoji', 'Noto Emoji'],
+                ),
+                headlineMedium: GoogleFonts.roboto(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  color: isDarkMode ? Colors.white : const Color(0xFF1A1A1A),
+                ).copyWith(
+                  fontFamilyFallback: const ['Noto Color Emoji', 'Noto Emoji'],
+                ),
+                bodyLarge: GoogleFonts.roboto(
+                  fontSize: 16, 
+                  color: isDarkMode ? Colors.grey[300] : const Color(0xFF424242),
+                ).copyWith(
+                  fontFamilyFallback: const ['Noto Color Emoji', 'Noto Emoji'],
+                ),
+                bodyMedium: GoogleFonts.roboto(
+                  fontSize: 14, 
+                  color: isDarkMode ? Colors.grey[400] : const Color(0xFF757575),
+                ).copyWith(
+                  fontFamilyFallback: const ['Noto Color Emoji', 'Noto Emoji'],
+                ),
+              ),
               scaffoldBackgroundColor: isDarkMode 
                 ? const Color(0xFF1A1A1A) 
                 : const Color(0xFFF8FAFF),
@@ -139,26 +139,7 @@ class EcoBazaarXApp extends StatelessWidget {
                   fontSize: 14
                 ),
               ),
-              textTheme: TextTheme(
-                headlineLarge: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white : const Color(0xFF1A1A1A),
-                ),
-                headlineMedium: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: isDarkMode ? Colors.white : const Color(0xFF1A1A1A),
-                ),
-                bodyLarge: TextStyle(
-                  fontSize: 16, 
-                  color: isDarkMode ? Colors.grey[300] : const Color(0xFF424242)
-                ),
-                bodyMedium: TextStyle(
-                  fontSize: 14, 
-                  color: isDarkMode ? Colors.grey[400] : const Color(0xFF757575)
-                ),
-              ),
+
               cardTheme: CardThemeData(
                 color: isDarkMode 
                   ? Colors.grey[800]!.withOpacity(0.7)

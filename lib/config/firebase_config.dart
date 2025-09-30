@@ -56,13 +56,13 @@ class FirebaseConfig {
   static const String storageRulesPath = 'storage.rules';
 
   // Environment settings
-  static const bool isProduction = true; // Change to true for production
-  static const String environment = 'production'; // Change to 'production' for production
+  static const bool isProduction = false; // Set to false to use local backend
+  static const String environment = 'development'; // Use development for local backend
 
   // API endpoints (if needed for custom backend)
   // For development, use local backend. For production, use Render backend
-  // static const String baseApiUrl = 'http://localhost:10000/api'; // Local development
-  static const String baseApiUrl = 'https://ecobazaarxspringboot-1.onrender.com/api'; // Production
+  static const String baseApiUrl = 'http://localhost:10000'; // Local development - WORKING
+  // static const String baseApiUrl = 'https://ecobazaarxspringboot-1.onrender.com'; // Production - HAS ISSUES
   static const String authApiUrl = '$baseApiUrl/auth';
   static const String storesApiUrl = '$baseApiUrl/stores';
   static const String productsApiUrl = '$baseApiUrl/products';

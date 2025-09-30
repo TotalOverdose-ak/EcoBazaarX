@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../providers/wishlist_provider.dart';
 import '../../providers/spring_auth_provider.dart';
-import '../../providers/cart_provider.dart';
 import '../shopping/product_detail_screen.dart';
 
 class WishlistScreen extends StatefulWidget {
@@ -14,10 +13,6 @@ class WishlistScreen extends StatefulWidget {
 }
 
 class _WishlistScreenState extends State<WishlistScreen> {
-  String _selectedCategory = 'All';
-  String _sortBy = 'recently_added';
-  String _searchQuery = '';
-
   @override
   void initState() {
     super.initState();
@@ -166,9 +161,11 @@ class _WishlistScreenState extends State<WishlistScreen> {
                       
                       if (confirmed == true) {
                         await wishlistProvider.clearWishlist(authProvider.userId!);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Wishlist cleared', style: GoogleFonts.poppins())),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Wishlist cleared', style: GoogleFonts.poppins())),
+                          );
+                        }
                       }
                     }
                   }
@@ -306,87 +303,6 @@ class _WishlistScreenState extends State<WishlistScreen> {
 
           return Column(
             children: [
-              // Search and Filter Bar
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Search Bar
-                    TextField(
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
-                      decoration: InputDecoration(
-                        hintText: 'Search wishlist items...',
-                        hintStyle: GoogleFonts.poppins(),
-                        prefixIcon: const Icon(Icons.search_rounded),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Filter and Sort Row
-                    Row(
-                      children: [
-                        // Category Filter
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _selectedCategory,
-                            decoration: InputDecoration(
-                              labelText: 'Category',
-                              labelStyle: GoogleFonts.poppins(),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            items: wishlistProvider.availableCategories.map((category) {
-                              return DropdownMenuItem(
-                                value: category,
-                                child: Text(category, style: GoogleFonts.poppins()),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedCategory = value!;
-                              });
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        // Sort Dropdown
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            initialValue: _sortBy,
-                            decoration: InputDecoration(
-                              labelText: 'Sort by',
-                              labelStyle: GoogleFonts.poppins(),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            items: [
-                              DropdownMenuItem(value: 'recently_added', child: Text('Recently Added', style: GoogleFonts.poppins())),
-                              DropdownMenuItem(value: 'price_low_to_high', child: Text('Price: Low to High', style: GoogleFonts.poppins())),
-                              DropdownMenuItem(value: 'price_high_to_low', child: Text('Price: High to Low', style: GoogleFonts.poppins())),
-                              DropdownMenuItem(value: 'name_a_to_z', child: Text('Name: A to Z', style: GoogleFonts.poppins())),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                _sortBy = value!;
-                              });
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
               // Wishlist Items
               Expanded(
                 child: ListView.builder(
@@ -499,29 +415,17 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                   }),
                                 ),
                               );
-                            } else if (value == 'add_to_cart') {
-                              final cartProvider = Provider.of<CartProvider>(context, listen: false);
-                                                             cartProvider.addItem(
-                                 productId: item['productId'] ?? 'unknown',
-                                 name: item['productName'] ?? 'Unknown Product',
-                                 description: item['productDescription'] ?? 'Eco-friendly product',
-                                 price: _parseDouble(item['productPrice']),
-                                 icon: _getIconFromString(item['productIcon']),
-                                 color: _parseColor(item['productColor']),
-                                 category: item['productCategory'] ?? 'General',
-                                 carbonFootprint: _parseDouble(item['carbonFootprint']),
-                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Added to cart', style: GoogleFonts.poppins())),
-                              );
+
                             } else if (value == 'remove') {
                               await wishlistProvider.removeFromWishlist(
                                 userId: authProvider.userId!,
                                 productId: item['productId'],
                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Removed from wishlist', style: GoogleFonts.poppins())),
-                              );
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Removed from wishlist', style: GoogleFonts.poppins())),
+                                );
+                              }
                             }
                           },
                           itemBuilder: (context) => [
@@ -535,16 +439,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                 ],
                               ),
                             ),
-                            PopupMenuItem(
-                              value: 'add_to_cart',
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.add_shopping_cart_rounded),
-                                  const SizedBox(width: 8),
-                                  Text('Add to Cart', style: GoogleFonts.poppins()),
-                                ],
-                              ),
-                            ),
+
                             PopupMenuItem(
                               value: 'remove',
                               child: Row(

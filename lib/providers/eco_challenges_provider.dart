@@ -87,23 +87,30 @@ class EcoChallengesProvider extends ChangeNotifier {
   }
 
   final List<EcoChallenge> _challenges = [];
+  final List<UserChallengeData> _userChallenges = [];
   int _totalEcoPoints = 0;
   bool _isLoading = false;
   String? _error;
+  String? _currentUserId;
 
   List<EcoChallenge> get activeChallenges => _challenges.where((c) => c.isActive && !c.isCompleted).toList();
   List<EcoChallenge> get completedChallenges => _challenges.where((c) => c.isCompleted).toList();
   List<EcoChallenge> get allChallenges => List.from(_challenges);
+  List<UserChallengeData> get userChallenges => List.from(_userChallenges);
+  List<UserChallengeData> get inProgressUserChallenges => _userChallenges.where((uc) => uc.status == 'IN_PROGRESS').toList();
+  List<UserChallengeData> get completedUserChallenges => _userChallenges.where((uc) => uc.status == 'COMPLETED').toList();
   int get totalEcoPoints => _totalEcoPoints;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  String? get currentUserId => _currentUserId;
 
   // Load challenges from Spring Boot backend
   Future<void> loadChallenges() async {
     _setLoading(true);
-    _clearError();
+    _error = null;
     
     try {
+      print('🔄 Loading eco challenges from backend...');
       final challengesData = await EcoChallengesService.getAllChallenges();
       _challenges.clear();
       
@@ -112,26 +119,27 @@ class EcoChallengesProvider extends ChangeNotifier {
           id: challengeData.id,
           title: challengeData.title,
           description: challengeData.description,
-          reward: challengeData.rewards.isNotEmpty ? challengeData.rewards.first : 'Eco Points',
-          color: challengeData.color,
+          reward: '${challengeData.points} Eco Points',
+          color: _parseColor(challengeData.color),
           icon: _parseIcon(challengeData.icon),
-          targetValue: challengeData.targetValue,
-          targetUnit: challengeData.unit,
-          startDate: challengeData.startDate,
-          endDate: challengeData.endDate,
+          targetValue: challengeData.duration,
+          targetUnit: 'days',
+          startDate: challengeData.startDate ?? DateTime.now(),
+          endDate: challengeData.endDate ?? DateTime.now().add(Duration(days: challengeData.duration)),
           category: challengeData.category,
-          isActive: !challengeData.isCompleted,
-          isCompleted: challengeData.isCompleted,
-          currentProgress: challengeData.currentValue,
-          progressPercentage: challengeData.progress,
+          isActive: challengeData.isActive,
+          isCompleted: false, // This will be updated when user progress is loaded
+          currentProgress: 0, // This will be updated when user progress is loaded
+          progressPercentage: 0.0, // This will be updated when user progress is loaded
         );
         _challenges.add(challenge);
       }
       
-      print('Challenges loaded from Spring Boot backend: ${_challenges.length}');
+      print('✅ Challenges loaded from backend: ${_challenges.length}');
       notifyListeners();
     } catch (e) {
-      _setError('Failed to load challenges: ${e.toString()}');
+      print('❌ Error loading challenges: $e');
+      _error = 'Failed to load challenges: ${e.toString()}';
     } finally {
       _setLoading(false);
     }
@@ -151,27 +159,174 @@ class EcoChallengesProvider extends ChangeNotifier {
   // Load user progress from Spring Boot backend
   Future<void> loadUserProgress(String userId) async {
     try {
-      final progressList = await EcoChallengesService.getUserProgress(userId);
+      print('🔄 Loading user challenges for user: $userId');
+      _currentUserId = userId;
       
-      for (final progress in progressList) {
-        final challengeIndex = _challenges.indexWhere((c) => c.id == progress['challengeId']);
+      // Load user's challenges from backend
+      final userChallenges = await EcoChallengesService.getUserChallenges(userId);
+      _userChallenges.clear();
+      _userChallenges.addAll(userChallenges);
+      
+      // Update challenges with user progress
+      for (final userChallenge in userChallenges) {
+        final challengeIndex = _challenges.indexWhere((c) => c.id == userChallenge.challengeId);
         if (challengeIndex != -1) {
           final challenge = _challenges[challengeIndex];
           _challenges[challengeIndex] = challenge.copyWith(
-            currentProgress: progress['currentProgress'] ?? 0,
-            progressPercentage: (progress['progressPercentage'] ?? 0.0).toDouble(),
-            isCompleted: progress['isCompleted'] ?? false,
+            currentProgress: (userChallenge.progressPercentage * challenge.targetValue / 100).toInt(),
+            progressPercentage: userChallenge.progressPercentage / 100,
+            isCompleted: userChallenge.status == 'COMPLETED',
           );
         }
       }
       
-      // Load user stats
-      final stats = await EcoChallengesService.getUserChallengeStats(userId);
-      _totalEcoPoints = stats['totalPoints'] ?? 0;
+      // Calculate total eco points from completed challenges
+      _totalEcoPoints = userChallenges
+          .where((uc) => uc.status == 'COMPLETED')
+          .fold(0, (sum, uc) => sum + uc.pointsEarned.toInt());
       
+      print('✅ Loaded ${userChallenges.length} user challenges, ${_totalEcoPoints} points');
       notifyListeners();
     } catch (e) {
-      print('Error loading user progress: $e');
+      print('❌ Error loading user progress: $e');
+    }
+  }
+
+  // Join a challenge
+  Future<bool> joinChallenge(String challengeId) async {
+    if (_currentUserId == null) {
+      _error = 'User not authenticated';
+      return false;
+    }
+    
+    try {
+      print('🎯 Joining challenge: $challengeId');
+      final userChallenge = await EcoChallengesService.joinChallenge(_currentUserId!, challengeId);
+      
+      if (userChallenge != null) {
+        _userChallenges.add(userChallenge);
+        
+        // Update challenge status
+        final challengeIndex = _challenges.indexWhere((c) => c.id == challengeId);
+        if (challengeIndex != -1) {
+          final challenge = _challenges[challengeIndex];
+          _challenges[challengeIndex] = challenge.copyWith(
+            currentProgress: 0,
+            progressPercentage: 0.0,
+            isCompleted: false,
+          );
+        }
+        
+        print('✅ Successfully joined challenge');
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Failed to join challenge';
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error joining challenge: $e');
+      _error = 'Failed to join challenge: ${e.toString()}';
+      return false;
+    }
+  }
+
+  // Update challenge progress
+  Future<bool> updateChallengeProgress(String challengeId, double progressPercentage, {String? notes}) async {
+    if (_currentUserId == null) {
+      _error = 'User not authenticated';
+      return false;
+    }
+    
+    try {
+      print('📈 Updating challenge progress: $challengeId to $progressPercentage%');
+      final userChallenge = await EcoChallengesService.updateChallengeProgress(
+        _currentUserId!,
+        challengeId,
+        progressPercentage,
+        notes: notes,
+      );
+      
+      if (userChallenge != null) {
+        // Update user challenge in list
+        final userChallengeIndex = _userChallenges.indexWhere((uc) => uc.challengeId == challengeId);
+        if (userChallengeIndex != -1) {
+          _userChallenges[userChallengeIndex] = userChallenge;
+        }
+        
+        // Update challenge display
+        final challengeIndex = _challenges.indexWhere((c) => c.id == challengeId);
+        if (challengeIndex != -1) {
+          final challenge = _challenges[challengeIndex];
+          _challenges[challengeIndex] = challenge.copyWith(
+            currentProgress: (progressPercentage * challenge.targetValue / 100).toInt(),
+            progressPercentage: progressPercentage / 100,
+            isCompleted: userChallenge.status == 'COMPLETED',
+          );
+        }
+        
+        print('✅ Progress updated successfully');
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Failed to update progress';
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error updating progress: $e');
+      _error = 'Failed to update progress: ${e.toString()}';
+      return false;
+    }
+  }
+
+  // Complete a challenge
+  Future<bool> completeChallenge(String challengeId, {String? notes, String? proofUrl}) async {
+    if (_currentUserId == null) {
+      _error = 'User not authenticated';
+      return false;
+    }
+    
+    try {
+      print('🏆 Completing challenge: $challengeId');
+      final userChallenge = await EcoChallengesService.completeChallenge(
+        _currentUserId!,
+        challengeId,
+        notes: notes,
+        proofUrl: proofUrl,
+      );
+      
+      if (userChallenge != null) {
+        // Update user challenge in list
+        final userChallengeIndex = _userChallenges.indexWhere((uc) => uc.challengeId == challengeId);
+        if (userChallengeIndex != -1) {
+          _userChallenges[userChallengeIndex] = userChallenge;
+        }
+        
+        // Update challenge display
+        final challengeIndex = _challenges.indexWhere((c) => c.id == challengeId);
+        if (challengeIndex != -1) {
+          final challenge = _challenges[challengeIndex];
+          _challenges[challengeIndex] = challenge.copyWith(
+            currentProgress: challenge.targetValue,
+            progressPercentage: 1.0,
+            isCompleted: true,
+          );
+        }
+        
+        // Update total points
+        _totalEcoPoints += userChallenge.pointsEarned.toInt();
+        
+        print('✅ Challenge completed! Points earned: ${userChallenge.pointsEarned}');
+        notifyListeners();
+        return true;
+      } else {
+        _error = 'Failed to complete challenge';
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error completing challenge: $e');
+      _error = 'Failed to complete challenge: ${e.toString()}';
+      return false;
     }
   }
 
@@ -296,17 +451,17 @@ class EcoChallengesProvider extends ChangeNotifier {
   // Update challenge progress
   Future<bool> updateProgress(String challengeId, int progress, String userId) async {
     try {
-      final result = await EcoChallengesService.updateChallengeProgress(
+      final result = await EcoChallengesService.updateChallengeProgressLegacy(
         userId: userId,
         challengeId: challengeId,
         progressValue: progress,
       );
       
-      if (result['success']) {
+      if (result != null && result['success']) {
         await loadUserProgress(userId);
         return true;
       } else {
-        _setError(result['message']);
+        _setError(result != null ? result['message'] : 'Failed to update progress');
         return false;
       }
     } catch (e) {
@@ -384,5 +539,103 @@ class EcoChallengesProvider extends ChangeNotifier {
     };
     
     return iconMap[iconName] ?? Icons.eco_rounded;
+  }
+
+  Color _parseColor(String colorString) {
+    try {
+      // Remove # if present and parse hex color
+      String hexColor = colorString.replaceAll('#', '');
+      if (hexColor.length == 6) {
+        hexColor = 'FF$hexColor'; // Add alpha channel
+      }
+      return Color(int.parse(hexColor, radix: 16));
+    } catch (e) {
+      print('Error parsing color: $colorString, using default');
+      return const Color(0xFF4CAF50); // Default green color
+    }
+  }
+
+  // User Challenges Methods
+  
+  // Set current user ID
+  void setCurrentUserId(String userId) {
+    _currentUserId = userId;
+    notifyListeners();
+  }
+
+  // Load user challenges from backend
+  Future<void> loadUserChallenges(String userId) async {
+    if (_isLoading) return;
+    
+    _setLoading(true);
+    _error = null;
+    
+    try {
+      print('🔄 Loading user challenges for user: $userId');
+      final userChallenges = await EcoChallengesService.getUserChallenges(userId);
+      
+      _userChallenges.clear();
+      _userChallenges.addAll(userChallenges);
+      
+      // Calculate total points earned
+      _totalEcoPoints = _userChallenges
+          .where((uc) => uc.status == 'COMPLETED')
+          .fold(0, (sum, uc) => sum + uc.pointsEarned);
+      
+      print('✅ Loaded ${_userChallenges.length} user challenges');
+      print('💰 Total eco points: $_totalEcoPoints');
+      
+    } catch (e) {
+      print('❌ Error loading user challenges: $e');
+      _setError('Failed to load user challenges: ${e.toString()}');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+
+
+  // Quit a challenge
+  Future<bool> quitChallenge(String userId, String challengeId) async {
+    try {
+      _setLoading(true);
+      print('🔄 Quitting challenge $challengeId for user $userId');
+      
+      final success = await EcoChallengesService.quitChallenge(userId, challengeId);
+      
+      if (success) {
+        // Remove from local list
+        _userChallenges.removeWhere((uc) => 
+            uc.userId == userId && uc.challengeId == challengeId);
+        notifyListeners();
+        print('✅ Successfully quit challenge');
+        return true;
+      } else {
+        _setError('Failed to quit challenge');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Error quitting challenge: $e');
+      _setError('Failed to quit challenge: ${e.toString()}');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Get user's status for a specific challenge
+  UserChallengeData? getUserChallengeStatus(String userId, String challengeId) {
+    try {
+      return _userChallenges.firstWhere((uc) => 
+          uc.userId == userId && uc.challengeId == challengeId);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if user has joined a challenge
+  bool hasUserJoinedChallenge(String userId, String challengeId) {
+    return _userChallenges.any((uc) => 
+        uc.userId == userId && uc.challengeId == challengeId);
   }
 }

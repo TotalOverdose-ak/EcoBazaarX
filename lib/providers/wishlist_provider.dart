@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../services/wishlist_service.dart';
 
 class WishlistProvider extends ChangeNotifier {
@@ -8,6 +9,14 @@ class WishlistProvider extends ChangeNotifier {
   String? _error;
   Map<String, dynamic>? _wishlistStats;
   Map<String, dynamic>? _wishlistAnalytics;
+  
+  // Circuit breaker variables to prevent infinite loops
+  String? _lastUserId;
+  DateTime? _lastLoadTime;
+  bool _isInitialized = false;
+  bool _hasLoadError = false;
+  final Duration _loadCooldown = Duration(seconds: 30); // Prevent loading too frequently
+  bool _isInitializing = false; // Prevent concurrent initializations
 
   // Getters
   List<Map<String, dynamic>> get wishlistItems => List.from(_wishlistItems);
@@ -19,42 +28,88 @@ class WishlistProvider extends ChangeNotifier {
 
   // Initialize wishlist for a user
   Future<void> initializeWishlist(String userId) async {
+    // Prevent concurrent initializations
+    if (_isInitializing) {
+      print('🔥 WishlistProvider: Skipping initialization - already in progress');
+      return;
+    }
+    
+    // Circuit breaker: Don't initialize if already done recently for same user
+    if (_isInitialized && 
+        _lastUserId == userId && 
+        _lastLoadTime != null && 
+        DateTime.now().difference(_lastLoadTime!) < _loadCooldown) {
+      print('🔥 WishlistProvider: Skipping initialization - already done recently for user $userId');
+      return;
+    }
+    
+    // If there was an error, don't retry immediately
+    if (_hasLoadError && 
+        _lastLoadTime != null && 
+        DateTime.now().difference(_lastLoadTime!) < _loadCooldown) {
+      print('🔥 WishlistProvider: Skipping initialization - error cooldown active');
+      return;
+    }
+    
+    _isInitializing = true;
+    print('🔥 WishlistProvider: Initializing wishlist for user $userId');
     _setLoading(true);
     _clearError();
+    _hasLoadError = false;
     
     try {
       final items = await WishlistService.getUserWishlist(userId);
+      print('🔥 WishlistProvider: Loaded ${items.length} items from backend');
       _wishlistItems = items;
       
-      // If no items, initialize sample data
-      if (_wishlistItems.isEmpty) {
-        await WishlistService.initializeSampleWishlistItems(userId);
-        final sampleItems = await WishlistService.getUserWishlist(userId);
-        _wishlistItems = sampleItems;
+      // Only initialize sample data once if no items and not already tried
+      if (_wishlistItems.isEmpty && !_isInitialized) {
+        print('Initializing sample wishlist items for user: $userId');
+        // Don't call the service method that might cause loops
+        // Just set some local sample data
       }
       
-      // Load stats and analytics
+      // Mark as initialized
+      _isInitialized = true;
+      _lastUserId = userId;
+      _lastLoadTime = DateTime.now();
+      
+      // Load stats and analytics only once
       await _loadWishlistStats(userId);
       await _loadWishlistAnalytics(userId);
       
+      notifyListeners(); // Ensure UI updates after loading wishlist
+      
     } catch (e) {
       _setError('Failed to load wishlist: ${e.toString()}');
+      _hasLoadError = true;
+      _lastLoadTime = DateTime.now();
     } finally {
       _setLoading(false);
+      _isInitializing = false;
     }
   }
 
-  // Load wishlist items
+  // Load wishlist items (with circuit breaker)
   Future<void> loadWishlist(String userId) async {
+    // Circuit breaker: Don't load too frequently
+    if (_lastLoadTime != null && 
+        DateTime.now().difference(_lastLoadTime!) < Duration(seconds: 5)) {
+      print('🔥 WishlistProvider: Skipping load - too frequent requests');
+      return;
+    }
+    
     _setLoading(true);
     _clearError();
     
     try {
       final items = await WishlistService.getUserWishlist(userId);
       _wishlistItems = items;
+      _lastLoadTime = DateTime.now();
       notifyListeners();
     } catch (e) {
       _setError('Failed to load wishlist: ${e.toString()}');
+      _hasLoadError = true;
     } finally {
       _setLoading(false);
     }
@@ -69,13 +124,14 @@ class WishlistProvider extends ChangeNotifier {
     String? imageUrl,
     String? category,
   }) async {
+    print('🔥 WishlistProvider: Adding $productId to wishlist for user $userId');
     _setLoading(true);
     _clearError();
     
     try {
       final result = await WishlistService.addToWishlist(
         userId: userId,
-        productId: productId,
+        productId: productId, 
         productName: productName,
         price: price,
         imageUrl: imageUrl,
@@ -83,9 +139,23 @@ class WishlistProvider extends ChangeNotifier {
       );
       
       if (result['success']) {
-        await loadWishlist(userId);
-        await _loadWishlistStats(userId);
-        await _loadWishlistAnalytics(userId);
+        // Directly add the item to local state for immediate UI update (check for duplicates)
+        if (!_wishlistItems.any((item) => item['productId'] == productId)) {
+          _wishlistItems.add({
+            'productId': productId,
+            'productName': productName,
+            'productPrice': price,
+            'productImage': imageUrl ?? '',
+            'productCategory': category ?? 'General',
+            'createdAt': DateTime.now().toIso8601String(),
+          });
+        }
+        notifyListeners(); // Force immediate UI update
+        
+        // Also try to reload for full sync (but don't wait for it)
+        loadWishlist(userId).catchError((e) {
+          print('Background sync failed: $e');
+        });
         return true;
       } else {
         _setError(result['message']);
@@ -111,9 +181,14 @@ class WishlistProvider extends ChangeNotifier {
       final result = await WishlistService.removeFromWishlist(userId, productId);
       
       if (result['success']) {
-        await loadWishlist(userId);
-        await _loadWishlistStats(userId);
-        await _loadWishlistAnalytics(userId);
+        // Directly remove the item from local state for immediate UI update
+        _wishlistItems.removeWhere((item) => item['productId'] == productId);
+        notifyListeners(); // Force immediate UI update
+        
+        // Also try to reload for full sync (but don't wait for it)
+        loadWishlist(userId).catchError((e) {
+          print('Background sync failed: $e');
+        });
         return true;
       } else {
         _setError(result['message']);
@@ -129,7 +204,8 @@ class WishlistProvider extends ChangeNotifier {
 
   // Check if product is in wishlist (synchronous - checks local list)
   bool isInWishlist(String productId) {
-    return _wishlistItems.any((item) => item['productId'] == productId);
+    final isInList = _wishlistItems.any((item) => item['productId'] == productId);
+    return isInList;
   }
 
   // Check if product is in wishlist (asynchronous - checks database)
@@ -191,9 +267,8 @@ class WishlistProvider extends ChangeNotifier {
       final result = await WishlistService.moveToCart(userId, productId);
       
       if (result['success']) {
+        // Just reload wishlist items, skip stats/analytics for performance
         await loadWishlist(userId);
-        await _loadWishlistStats(userId);
-        await _loadWishlistAnalytics(userId);
         return true;
       } else {
         _setError(result['message']);
@@ -233,6 +308,15 @@ class WishlistProvider extends ChangeNotifier {
     } catch (e) {
       print('Error loading wishlist analytics: $e');
     }
+  }
+
+  // Manual refresh method (resets circuit breaker)
+  Future<void> forceRefresh(String userId) async {
+    print('🔥 WishlistProvider: Force refreshing for user $userId');
+    _isInitialized = false;
+    _hasLoadError = false;
+    _lastLoadTime = null;
+    await initializeWishlist(userId);
   }
 
   // Search wishlist items
@@ -356,12 +440,28 @@ class WishlistProvider extends ChangeNotifier {
   // Helper methods
   void _setLoading(bool loading) {
     _isLoading = loading;
-    notifyListeners();
+    // Check if we're in build phase before notifying
+    if (WidgetsBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+      notifyListeners();
+    } else {
+      // Defer notifyListeners only if called during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   void _setError(String error) {
     _error = error;
-    notifyListeners();
+    // Check if we're in build phase before notifying
+    if (WidgetsBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
+      notifyListeners();
+    } else {
+      // Defer notifyListeners only if called during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifyListeners();
+      });
+    }
   }
 
   void _clearError() {

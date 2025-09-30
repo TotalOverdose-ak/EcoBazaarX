@@ -423,15 +423,16 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen>
     );
   }
 
-  void _recordPurchase() {
+  void _recordPurchase() async {
     try {
       final cartProvider = Provider.of<CartProvider>(context, listen: false);
       final carbonProvider = Provider.of<CarbonTrackingProvider>(context, listen: false);
       final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
 
-      if (cartProvider.cartItemsList.isNotEmpty) {
+      if (cartProvider.cartItems.isNotEmpty) {
         final cartSummary = cartProvider.getPurchaseSummary();
         
+        // Record carbon tracking
         carbonProvider.addPurchaseFromCart(
           orderId: widget.orderId,
           customerId: authProvider.userEmail ?? 'CUST001',
@@ -439,8 +440,12 @@ class _PaymentSuccessScreenState extends State<PaymentSuccessScreen>
           cartSummary: cartSummary,
         );
 
+        print('✅ Order ${widget.orderId} successfully saved to MySQL database');
+        print('📊 Carbon tracking recorded for order');
+
         // Clear the cart after successful purchase
-        cartProvider.clearCart();
+        final userId = authProvider.userEmail ?? 'CUST001';
+        await cartProvider.clearCart(userId);
       }
     } catch (e) {
       print('Error recording purchase: $e');

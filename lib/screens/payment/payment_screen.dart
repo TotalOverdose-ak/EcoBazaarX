@@ -26,6 +26,9 @@ class _PaymentScreenState extends State<PaymentScreen>
   final _expiryController = TextEditingController();
   final _cvvController = TextEditingController();
   final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _pincodeController = TextEditingController();
 
   @override
   void initState() {
@@ -62,6 +65,9 @@ class _PaymentScreenState extends State<PaymentScreen>
     _expiryController.dispose();
     _cvvController.dispose();
     _nameController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _pincodeController.dispose();
     super.dispose();
   }
 
@@ -478,6 +484,75 @@ class _PaymentScreenState extends State<PaymentScreen>
                     ),
                   ),
 
+                  const SizedBox(height: 24),
+
+                  // Shipping Address Section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18.0),
+                    child: Text(
+                      'Shipping Address',
+                      style: GoogleFonts.poppins(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF22223B),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Address Form
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.08),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          _buildAddressField(
+                            'Full Address',
+                            'Enter your complete address',
+                            Icons.location_on_rounded,
+                            _addressController,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: _buildAddressField(
+                                  'City',
+                                  'Enter city',
+                                  Icons.location_city_rounded,
+                                  _cityController,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: _buildAddressField(
+                                  'Pincode',
+                                  '000000',
+                                  Icons.pin_drop_rounded,
+                                  _pincodeController,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 32),
 
                   // Pay Now Button
@@ -659,6 +734,46 @@ class _PaymentScreenState extends State<PaymentScreen>
     );
   }
 
+  Widget _buildAddressField(
+    String label,
+    String hint,
+    IconData icon,
+    TextEditingController controller,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF22223B),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, color: const Color(0xFF4CAF50)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+            ),
+            filled: true,
+            fillColor: const Color(0xFFF7F6F2),
+          ),
+          style: GoogleFonts.poppins(),
+          maxLines: label == 'Full Address' ? 3 : 1,
+        ),
+      ],
+    );
+  }
+
   void _processPayment() async {
     // Show loading dialog first
     showDialog(
@@ -693,15 +808,14 @@ class _PaymentScreenState extends State<PaymentScreen>
       final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
       
       // Get cart items
-      final cartItems = cartProvider.cartItemsList.map((item) => {
-        'productId': item.id,
-        'productName': item.name,
-        'quantity': item.quantity,
-        'price': item.price,
-        'totalPrice': item.price * item.quantity,
-        'color': '#${item.color.value.toRadixString(16).padLeft(8, '0')}',
-        'icon': item.icon.codePoint.toString(),
-        'carbonFootprint': item.carbonFootprint,
+      final cartItems = cartProvider.cartItems.map((item) => {
+        'productId': item['productId'],
+        'productName': item['name'],
+        'quantity': item['quantity'],
+        'price': item['price'],
+        'totalPrice': item['price'] * item['quantity'],
+        'category': item['category'] ?? 'Other',
+        'carbonFootprint': item['carbonFootprint'] ?? 0.0,
         'ecoPoints': 10, // Default eco points per item
       }).toList();
 
@@ -712,24 +826,24 @@ class _PaymentScreenState extends State<PaymentScreen>
       final discountAmount = totalAmount * 0.10; // 10% discount
       final finalAmount = totalAmount + taxAmount + shippingAmount - discountAmount;
 
-      // Create shipping and billing address (using user data)
+      // Create shipping and billing address (using user input)
       final shippingAddress = {
         'fullName': authProvider.userName ?? 'Customer',
-        'phone': '+91-0000000000', // Default phone number
-        'address': '123 Main Street',
-        'city': 'Mumbai',
+        'phone': '+91-9876543210',
+        'address': _addressController.text.isNotEmpty ? _addressController.text : '123 Main Street',
+        'city': _cityController.text.isNotEmpty ? _cityController.text : 'Mumbai',
         'state': 'Maharashtra',
-        'pincode': '400001',
+        'pincode': _pincodeController.text.isNotEmpty ? _pincodeController.text : '400001',
         'landmark': 'Near Station',
       };
 
       final billingAddress = {
         'fullName': authProvider.userName ?? 'Customer',
-        'phone': '+91-0000000000', // Default phone number
-        'address': '123 Main Street',
-        'city': 'Mumbai',
+        'phone': '+91-9876543210',
+        'address': _addressController.text.isNotEmpty ? _addressController.text : '123 Main Street',
+        'city': _cityController.text.isNotEmpty ? _cityController.text : 'Mumbai',
         'state': 'Maharashtra',
-        'pincode': '400001',
+        'pincode': _pincodeController.text.isNotEmpty ? _pincodeController.text : '400001',
       };
 
       // Create order in Firestore
@@ -785,7 +899,8 @@ class _PaymentScreenState extends State<PaymentScreen>
 
       if (processResult['success']) {
         // Clear cart after successful payment
-        cartProvider.clearCart();
+        final userId = authProvider.isAuthenticated ? authProvider.userId! : 'user123';
+        await cartProvider.clearCart(userId);
         
         // Navigate to success screen
         Navigator.pushReplacement(

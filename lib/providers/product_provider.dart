@@ -307,15 +307,45 @@ class ProductProvider extends ChangeNotifier {
     }
   }
 
-  // Load products from Firebase
+  // Load products from Spring Boot backend
   Future<void> loadProducts() async {
     _setLoading(true);
     try {
-      _allProducts = await ProductService.getAllProducts();
+      print('📦 Loading products from backend...');
+      final backendProducts = await ProductService.getAllProducts();
+      
+      if (backendProducts.isNotEmpty) {
+        print('📦 Loaded ${backendProducts.length} products from backend');
+        _allProducts = backendProducts.map((product) => {
+          'id': product['id'].toString(),
+          'name': product['name'] ?? '',
+          'description': product['description'] ?? '',
+          'price': (product['price'] ?? 0.0).toDouble(),
+          'quantity': product['quantity'] ?? 0,
+          'category': product['category'] ?? 'General',
+          'imageUrl': product['imageUrl'] ?? '',
+          'storeId': product['storeId'] ?? '',
+          'storeName': product['storeName'] ?? '',
+          'carbonFootprint': (product['carbonFootprint'] ?? 0.0).toDouble(),
+          'ecoPoints': product['ecoPoints'] ?? 0,
+          'isActive': product['isActive'] ?? true,
+          'createdAt': DateTime.tryParse(product['createdAt'] ?? '') ?? DateTime.now(),
+          'updatedAt': DateTime.tryParse(product['updatedAt'] ?? '') ?? DateTime.now(),
+          'icon': Icons.inventory_2,
+          'color': const Color(0xFF4CAF50),
+        }).toList();
+      } else {
+        print('📦 No products found in backend, using static data');
+        _allProducts = List.from(_staticProducts);
+      }
       _error = null;
+      notifyListeners();
     } catch (e) {
       _error = 'Failed to load products: ${e.toString()}';
-      print('Error loading products: $e');
+      print('❌ Error loading products: $e');
+      // Fallback to static products on error
+      _allProducts = List.from(_staticProducts);
+      notifyListeners();
     } finally {
       _setLoading(false);
     }
@@ -427,40 +457,80 @@ class ProductProvider extends ChangeNotifier {
   // Add new product
   Future<Map<String, dynamic>> addProduct(Map<String, dynamic> product, {String? authToken, String? storeId, String? storeName}) async {
     try {
-      // Generate random carbon footprint based on category
+      print('📦 ProductProvider: Adding product - ${product['name']}');
+      
+      // Validate required fields
+      if (product['name'] == null || product['name'].toString().trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'Product name is required',
+          'field': 'name'
+        };
+      }
+      
+      if (product['price'] == null || product['price'] == 0) {
+        return {
+          'success': false,
+          'message': 'Product price is required and must be greater than 0',
+          'field': 'price'
+        };
+      }
+      
+      if (product['category'] == null || product['category'].toString().trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'Product category is required',
+          'field': 'category'
+        };
+      }
+      
+      // Set default values for missing fields
+      product['description'] = product['description'] ?? '';
+      product['quantity'] = product['quantity'] ?? 1;
+      product['imageUrl'] = product['imageUrl'] ?? '';
       product['carbonFootprint'] = _generateCarbonFootprint(product['category']);
       
-      // Generate random quantity if not provided
-      if (product['quantity'] == null) {
-        product['quantity'] = 50 + Random().nextInt(200);
-      }
+      // Ensure storeId is available
+      final finalStoreId = storeId ?? product['storeId'] ?? 'store-001';
+      final finalStoreName = storeName ?? product['storeName'] ?? 'Default Store';
+      
+      print('📦 Sending to backend with storeId: $finalStoreId, storeName: $finalStoreName');
       
       // Add to Spring Boot backend
       final result = await ProductService.addProduct(
-        name: product['name'] ?? '',
-        description: product['description'] ?? '',
-        price: (product['price'] ?? 0.0).toDouble(),
-        stock: product['quantity'] ?? 0,
-        category: product['category'] ?? '',
-        storeId: storeId ?? product['storeId'] ?? '1',
-        storeName: storeName ?? product['storeName'] ?? 'Default Store',
-        imageUrl: product['imageUrl'],
-        icon: product['icon'],
-        color: product['color'],
+        name: product['name'].toString().trim(),
+        description: product['description'].toString(),
+        price: double.tryParse(product['price'].toString()) ?? 0.0,
+        stock: int.tryParse(product['quantity'].toString()) ?? 1,
+        category: product['category'].toString().trim(),
+        storeId: finalStoreId,
+        storeName: finalStoreName,
+        imageUrl: product['imageUrl'].toString(),
+        icon: product['icon']?.toString(),
+        color: product['color']?.toString(),
         authToken: authToken,
       );
       
+      print('📦 Backend result: ${result['success']} - ${result['message']}');
+      
       if (result['success']) {
-        // Reload products from Firebase
+        // Reload products from backend
         await loadProducts();
-        return result;
+        notifyListeners();
+        return {
+          'success': true,
+          'message': 'Product added successfully!',
+          'product': result['product']
+        };
       } else {
         return result;
       }
     } catch (e) {
+      print('❌ Error in ProductProvider.addProduct: $e');
       return {
         'success': false,
         'message': 'Failed to add product: ${e.toString()}',
+        'error': e.toString()
       };
     }
   }
@@ -604,8 +674,12 @@ class ProductProvider extends ChangeNotifier {
     'Accessories', 
     'Electronics',
     'Personal Care',
+    'Beauty & Personal Care',
     'Food & Beverages',
     'Home & Garden',
+    'Home & Living',
+    'Fashion',
+    'Office & Stationery',
   ];
 
   // Get available materials

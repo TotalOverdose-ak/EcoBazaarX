@@ -1,5 +1,8 @@
 // import 'package:cloud_firestore/cloud_firestore.dart'; // DISABLED - Using Spring Boot Backend
+import 'dart:convert';
 import 'dart:math';
+import 'package:http/http.dart' as http;
+import '../config/firebase_config.dart';
 
 class PaymentService {
   // DISABLED - Using Spring Boot Backend
@@ -169,7 +172,7 @@ class PaymentService {
     return 'TXN_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_$random';
   }
 
-  // Create order (for compatibility)
+  // Create order (MySQL Backend Integration)
   static Future<Map<String, dynamic>> createOrder({
     required String userId,
     required String userEmail,
@@ -186,12 +189,94 @@ class PaymentService {
     required String paymentMethod,
     String? deliveryNotes,
   }) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': true,
-      'orderId': generatePaymentId(),
-      'message': 'Order created successfully (simulated)',
-    };
+    try {
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final String orderId = generatePaymentId();
+      
+      // Create main order in MySQL
+      final orderResponse = await http.post(
+        Uri.parse('$baseUrl/api/orders'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'orderId': orderId,
+          'userId': userId,
+          'userEmail': userEmail,
+          'userName': userName,
+          'userPhone': userPhone,
+          'totalAmount': totalAmount,
+          'taxAmount': taxAmount,
+          'shippingAmount': shippingAmount,
+          'discountAmount': discountAmount,
+          'finalAmount': finalAmount,
+          'orderStatus': 'PENDING',
+          'paymentStatus': 'PENDING',
+          'paymentMethod': paymentMethod,
+          'shippingAddress': '${shippingAddress['address']}, ${shippingAddress['city']}, ${shippingAddress['state']}, ${shippingAddress['pincode']}',
+          'billingAddress': '${billingAddress['address']}, ${billingAddress['city']}, ${billingAddress['state']}, ${billingAddress['pincode']}',
+          'deliveryNotes': deliveryNotes ?? '',
+          'carbonFootprint': cartItems.fold(0.0, (sum, item) => sum + (item['carbonFootprint'] ?? 0.0)),
+          'ecoPointsEarned': cartItems.fold<int>(0, (sum, item) => sum + (item['ecoPoints'] as int? ?? 0)),
+          'currency': 'INR',
+        }),
+      );
+
+      if (orderResponse.statusCode == 200) {
+        final orderData = jsonDecode(orderResponse.body);
+        print('🛍️ Order created successfully: $orderId');
+        
+        // Create order items (user_orders) for each cart item
+        for (final item in cartItems) {
+          final userOrderId = 'UO-${DateTime.now().millisecondsSinceEpoch}-${Random().nextInt(1000)}';
+          
+          final userOrderResponse = await http.post(
+            Uri.parse('$baseUrl/api/userorders'),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'userOrderId': userOrderId,
+              'userId': userId,
+              'orderId': orderId,
+              'productId': item['productId'],
+              'productName': item['productName'],
+              'productPrice': item['price'],
+              'quantity': item['quantity'],
+              'totalAmount': item['price'] * item['quantity'],
+              'storeId': item['storeId'] ?? 'STORE-001',
+              'storeName': item['storeName'] ?? 'EcoStore',
+              'orderStatus': 'PENDING',
+            }),
+          );
+          
+          if (userOrderResponse.statusCode == 200) {
+            print('📦 Order item created: ${item['productName']}');
+          } else {
+            print('❌ Failed to create order item: ${item['productName']}');
+          }
+        }
+        
+        return {
+          'success': true,
+          'orderId': orderId,
+          'message': 'Order created successfully',
+          'orderData': orderData,
+        };
+      } else {
+        print('❌ Failed to create order: ${orderResponse.statusCode} - ${orderResponse.body}');
+        return {
+          'success': false,
+          'message': 'Failed to create order: ${orderResponse.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error creating order: $e');
+      return {
+        'success': false,
+        'message': 'Error creating order: $e',
+      };
+    }
   }
 
   // Simulate Razorpay payment
@@ -208,7 +293,7 @@ class PaymentService {
     };
   }
 
-  // Process payment (for compatibility)
+  // Process payment (Spring Boot API implementation)
   static Future<Map<String, dynamic>> processPayment({
     required String orderId,
     required String userId,
@@ -218,11 +303,41 @@ class PaymentService {
     required Map<String, dynamic> gatewayResponse,
     String? failureReason,
   }) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': true,
-      'paymentId': generatePaymentId(),
-      'message': 'Payment processed successfully (simulated)',
-    };
+    try {
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/payments/process'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'orderId': orderId,
+          'userId': userId,
+          'paymentMethod': paymentMethod,
+          'paymentGateway': paymentGateway,
+          'amount': amount,
+          'gatewayResponse': gatewayResponse,
+          'failureReason': failureReason,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        print('💳 Payment processed successfully: ${data['paymentId']}');
+        return data;
+      } else {
+        print('💳 Payment processing failed: ${response.statusCode} - ${response.body}');
+        return {
+          'success': false,
+          'message': 'Payment processing failed: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('💳 Error processing payment: $e');
+      return {
+        'success': false,
+        'message': 'Error processing payment: $e',
+      };
+    }
   }
 }

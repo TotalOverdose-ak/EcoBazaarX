@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../providers/eco_challenges_provider.dart';
 import '../../providers/spring_auth_provider.dart';
+import '../../services/eco_challenges_service.dart';
 import 'add_challenge_screen.dart';
 
 class EcoChallengesScreen extends StatefulWidget {
@@ -405,9 +406,22 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
   }
 
   Widget _buildChallengeCard(EcoChallenge challenge) {
-    final progressPercentage = challenge.progressPercentage;
-    final isCompleted = challenge.isCompleted;
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final challengesProvider = Provider.of<EcoChallengesProvider>(context, listen: false);
+    
+    // Check user challenge status first
+    bool hasJoined = false;
+    UserChallengeData? userChallenge;
+    if (authProvider.userId != null) {
+      hasJoined = challengesProvider.hasUserJoinedChallenge(authProvider.userId!, challenge.id);
+      userChallenge = challengesProvider.getUserChallengeStatus(authProvider.userId!, challenge.id);
+    }
+    
+    // Calculate progress based on user challenge or default challenge data
+    final progressPercentage = (userChallenge?.progressPercentage ?? 0.0).clamp(0.0, 1.0);
+    final isCompleted = userChallenge?.status == 'COMPLETED' || challenge.isCompleted;
     final daysLeft = challenge.endDate.difference(DateTime.now()).inDays;
+
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -464,15 +478,39 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
                   ],
                 ),
               ),
-              if (isCompleted)
+              if (userChallenge != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50),
+                    color: userChallenge.status == 'COMPLETED' 
+                        ? const Color(0xFF4CAF50)
+                        : userChallenge.status == 'IN_PROGRESS'
+                            ? const Color(0xFF2196F3)
+                            : const Color(0xFFFF9800),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Completed',
+                    userChallenge.status == 'COMPLETED' 
+                        ? 'Completed'
+                        : userChallenge.status == 'IN_PROGRESS'
+                            ? 'In Progress'
+                            : userChallenge.status,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else if (hasJoined)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2196F3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Joined',
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -506,7 +544,9 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${challenge.currentProgress}/${challenge.targetValue} ${challenge.targetUnit}',
+                      userChallenge != null 
+                          ? '${(userChallenge.progressPercentage * challenge.targetValue / 100).round()}/${challenge.targetValue} ${challenge.targetUnit}'
+                          : '0/${challenge.targetValue} ${challenge.targetUnit}',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -577,9 +617,23 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => _updateProgress(challenge),
+                onPressed: () {
+                  if (userChallenge == null) {
+                    _showJoinChallengeDialog(challenge);
+                  } else if (userChallenge.status == 'IN_PROGRESS') {
+                    _updateProgress(challenge);
+                  } else if (userChallenge.status == 'COMPLETED') {
+                    // Already completed - no action needed
+                  } else {
+                    _showJoinChallengeDialog(challenge);
+                  }
+                },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: challenge.color,
+                  backgroundColor: userChallenge == null 
+                      ? const Color(0xFF4CAF50)
+                      : userChallenge.status == 'COMPLETED'
+                          ? Colors.grey
+                          : challenge.color,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -588,7 +642,13 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
                   ),
                 ),
                 child: Text(
-                  'Update Progress',
+                  userChallenge == null 
+                      ? 'Join Challenge'
+                      : userChallenge.status == 'IN_PROGRESS'
+                          ? 'Update Progress'
+                          : userChallenge.status == 'COMPLETED'
+                              ? 'Completed'
+                              : 'Join Challenge',
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -603,6 +663,18 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
   }
 
   void _updateProgress(EcoChallenge challenge) {
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final challengesProvider = Provider.of<EcoChallengesProvider>(context, listen: false);
+    
+    // Check if user has joined this challenge
+    if (authProvider.userId != null) {
+      final hasJoined = challengesProvider.hasUserJoinedChallenge(authProvider.userId!, challenge.id);
+      if (!hasJoined) {
+        _showJoinChallengeDialog(challenge);
+        return;
+      }
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -617,18 +689,26 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'How much progress did you make on "${challenge.title}"?',
+              'Update progress for "${challenge.title}"',
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: Colors.grey[700],
               ),
             ),
             const SizedBox(height: 16),
+            Text(
+              'Progress Percentage',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [1, 2, 3, 5].map((value) {
+              children: [10, 25, 50, 75, 100].map((value) {
                 return ElevatedButton(
-                  onPressed: () => _submitProgress(challenge, value),
+                  onPressed: () => _submitProgressPercentage(challenge, value.toDouble()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: challenge.color,
                     foregroundColor: Colors.white,
@@ -638,9 +718,9 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
                     ),
                   ),
                   child: Text(
-                    '+$value',
+                    '$value%',
                     style: GoogleFonts.poppins(
-                      fontSize: 16,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -665,13 +745,142 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
     );
   }
 
-  Future<void> _submitProgress(EcoChallenge challenge, int progress) async {
+  void _showJoinChallengeDialog(EcoChallenge challenge) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Join Challenge',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              challenge.icon,
+              size: 48,
+              color: challenge.color,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Join "${challenge.title}"?',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              challenge.description,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: challenge.color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.stars_rounded, color: challenge.color, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    challenge.reward,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: challenge.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(color: Colors.grey[600]),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => _joinChallenge(challenge),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: challenge.color,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Join Challenge',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _joinChallenge(EcoChallenge challenge) async {
     Navigator.pop(context);
     
     final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
-    final userId = authProvider.isAuthenticated ? authProvider.userId : null;
+    final challengesProvider = Provider.of<EcoChallengesProvider>(context, listen: false);
     
-    if (userId == null) {
+    if (authProvider.userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please login to join challenges',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final success = await challengesProvider.joinChallenge(challenge.id);
+    
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Successfully joined "${challenge.title}"!',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            challengesProvider.error ?? 'Failed to join challenge',
+            style: GoogleFonts.poppins(),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _submitProgressPercentage(EcoChallenge challenge, double progressPercentage) async {
+    Navigator.pop(context);
+    
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final challengesProvider = Provider.of<EcoChallengesProvider>(context, listen: false);
+    
+    if (authProvider.userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -684,19 +893,34 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
       return;
     }
 
-    final challengesProvider = Provider.of<EcoChallengesProvider>(context, listen: false);
-    final success = await challengesProvider.updateProgress(challenge.id, progress, userId);
+    String notes = 'Progress updated to $progressPercentage% via mobile app';
+    if (progressPercentage >= 100) {
+      notes = 'Challenge completed! 🎉 Great job on finishing "${challenge.title}"!';
+    }
+
+    final success = await challengesProvider.updateChallengeProgress(
+      challenge.id, 
+      progressPercentage,
+      notes: notes,
+    );
     
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Progress updated! +$progress ${challenge.targetUnit}',
+            progressPercentage >= 100 
+                ? 'Congratulations! Challenge completed! 🎉' 
+                : 'Progress updated to $progressPercentage%',
             style: GoogleFonts.poppins(),
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: progressPercentage >= 100 ? Colors.green : Colors.blue,
         ),
       );
+      
+      // If completed, show completion dialog
+      if (progressPercentage >= 100) {
+        _showCompletionDialog(challenge);
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -709,4 +933,65 @@ class _EcoChallengesScreenState extends State<EcoChallengesScreen>
       );
     }
   }
+
+  void _showCompletionDialog(EcoChallenge challenge) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          '🎉 Congratulations!',
+          style: GoogleFonts.poppins(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.green,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.emoji_events_rounded,
+              size: 64,
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'You completed "${challenge.title}"!',
+              style: GoogleFonts.poppins(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You earned ${challenge.reward}!',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Awesome!',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+
 }

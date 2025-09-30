@@ -20,8 +20,6 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  // Orders data will be loaded from Firestore via OrdersProvider
-
   @override
   void initState() {
     super.initState();
@@ -48,19 +46,30 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
     _fadeController.forward();
     _slideController.forward();
     
-    // Initialize orders from Firestore
+    // Initialize orders and cart from backend
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeOrders();
+      _initializeCart();
     });
   }
 
   void _initializeOrders() {
-    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
     final ordersProvider = Provider.of<OrdersProvider>(context, listen: false);
-    
-    if (authProvider.isAuthenticated && authProvider.userId != null) {
-      ordersProvider.initializeOrders(authProvider.userId!);
-    }
+    final userId = _getCurrentUserId();
+    // Initialize orders with authenticated user ID
+    ordersProvider.initializeOrders(userId);
+  }
+
+  void _initializeCart() {
+    final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final userId = _getCurrentUserId();
+    // Initialize cart with authenticated user ID
+    cartProvider.initializeCart(userId);
+  }
+  
+  String _getCurrentUserId() {
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    return authProvider.userId ?? authProvider.userEmail ?? 'testuser123';
   }
 
   @override
@@ -74,7 +83,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
   Widget build(BuildContext context) {
     return Consumer<CartProvider>(
       builder: (context, cartProvider, child) {
-        final cartItems = cartProvider.cartItemsList;
+        final cartItems = cartProvider.cartItems;
         final itemCount = cartProvider.totalQuantity;
         final totalAmount = cartProvider.totalAmount;
 
@@ -155,64 +164,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                       ),
                     ),
 
-                    // Your Orders Section
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Your Orders',
-                            style: GoogleFonts.poppins(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF22223B),
-                            ),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: () => _showAllOrders(),
-                            child: Text(
-                              'View All',
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFFB5C7F7),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Consumer<OrdersProvider>(
-                      builder: (context, ordersProvider, child) {
-                        final orders = ordersProvider.getFormattedUserOrders();
-                        return SizedBox(
-                          height: 120,
-                          child: ordersProvider.isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : orders.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'No orders yet',
-                                        style: GoogleFonts.poppins(
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      scrollDirection: Axis.horizontal,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      itemCount: orders.length,
-                                      itemBuilder: (context, index) {
-                                        final order = orders[index];
-                                        return _buildOrderCard(order);
-                                      },
-                                    ),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
 
                     // Cart Items
                     Expanded(
@@ -320,7 +272,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                                   ],
                                 ),
                                 Text(
-                                  '${cartProvider.totalCarbonFootprintSaved.toStringAsFixed(1)} kg CO₂',
+                                  '${(cartProvider.totalAmount * 0.05).toStringAsFixed(1)} kg CO₂',
                                   style: GoogleFonts.poppins(
                                     fontWeight: FontWeight.w600,
                                     color: Colors.green[600],
@@ -376,7 +328,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.payment_rounded,
                                       size: 24,
                                     ),
@@ -467,7 +419,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
     );
   }
 
-  Widget _buildDynamicCartItem(CartItem item, CartProvider cartProvider) {
+  Widget _buildDynamicCartItem(Map<String, dynamic> item, CartProvider cartProvider) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -487,12 +439,12 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: item.color.withOpacity(0.2),
+              color: const Color(0xFFB5C7F7).withOpacity(0.2),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(
-              item.icon,
-              color: const Color(0xFF22223B),
+            child: const Icon(
+              Icons.shopping_bag_rounded,
+              color: Color(0xFF22223B),
               size: 28,
             ),
           ),
@@ -506,7 +458,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                   children: [
                     Expanded(
                       child: Text(
-                        item.name,
+                        item['productName'] ?? 'Unknown Product',
                         style: GoogleFonts.poppins(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -516,11 +468,12 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                     ),
                     IconButton(
                       onPressed: () {
-                        cartProvider.removeItem(item.id);
+                        final userId = _getCurrentUserId();
+                        cartProvider.removeItem(userId, item['productId'] ?? '');
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
-                              '${item.name} removed from cart',
+                              '${item['productName'] ?? 'Item'} removed from cart',
                               style: GoogleFonts.poppins(),
                             ),
                             backgroundColor: Colors.red,
@@ -533,7 +486,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                   ],
                 ),
                 Text(
-                  item.description,
+                  'Eco-friendly product',
                   style: GoogleFonts.poppins(
                     color: Colors.grey[600],
                     fontSize: 14,
@@ -544,7 +497,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '₹${item.price.toStringAsFixed(0)}',
+                      '₹${((item['productPrice'] ?? 0.0) as double).toStringAsFixed(0)}',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -555,7 +508,8 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                       children: [
                         IconButton(
                           onPressed: () {
-                            cartProvider.removeSingleItem(item.id);
+                            final userId = _getCurrentUserId();
+                            cartProvider.removeSingleItem(userId, item['productId'] ?? '');
                           },
                           icon: Container(
                             padding: const EdgeInsets.all(4),
@@ -576,11 +530,11 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: item.color.withOpacity(0.1),
+                            color: const Color(0xFFB5C7F7).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            item.quantity.toString(),
+                            (item['quantity'] ?? 0).toString(),
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.bold,
                               color: const Color(0xFF22223B),
@@ -589,21 +543,21 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                         ),
                         IconButton(
                           onPressed: () {
+                            final userId = _getCurrentUserId();
                             cartProvider.addItem(
-                              productId: item.id,
-                              name: item.name,
-                              description: item.description,
-                              price: item.price,
-                              icon: item.icon,
-                              color: item.color,
-                              category: item.category,
-                              carbonFootprint: item.carbonFootprint,
+                              userId: userId,
+                              productId: item['productId'] ?? '',
+                              productName: item['productName'] ?? '',
+                              price: (item['productPrice'] ?? 0.0) as double,
+                              category: item['productCategory'] ?? 'Eco Products',
+                              quantity: 1,
+                              carbonFootprint: 5.0,
                             );
                           },
                           icon: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: item.color,
+                              color: const Color(0xFFB5C7F7),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -627,7 +581,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '${item.totalCarbonFootprint.toStringAsFixed(1)} kg CO₂ saved',
+                      '${(((item['productPrice'] ?? 0.0) as double) * 0.05).toStringAsFixed(1)} kg CO₂ saved',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: Colors.green[600],
@@ -644,334 +598,7 @@ class _ShoppingCartScreenState extends State<ShoppingCartScreen>
     );
   }
 
-  void _showAllOrders() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF7F6F2),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(32),
-          ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 16),
-              width: 50,
-              height: 5,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2.5),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Text(
-                    'All Orders',
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF22223B),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Consumer<OrdersProvider>(
-                builder: (context, ordersProvider, child) {
-                  final orders = ordersProvider.getFormattedUserOrders();
-                  return ordersProvider.isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : orders.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.shopping_bag_outlined,
-                                    size: 64,
-                                    color: Colors.grey[400],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No orders yet',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 18,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Start shopping to see your orders here',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 14,
-                                      color: Colors.grey[500],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              itemCount: orders.length,
-                              itemBuilder: (context, index) {
-                                final order = orders[index];
-                                return _buildOrderListTile(order);
-                              },
-                            );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildOrderCard(Map<String, dynamic> order) {
-    return Container(
-      width: 200,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: _parseColor(order['color']).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.shopping_bag_rounded,
-                  color: _parseColor(order['color']),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      order['id'],
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF22223B),
-                      ),
-                    ),
-                    Text(
-                      order['product'],
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF22223B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                order['amount'],
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _parseColor(order['color']),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(order['status']).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  order['status'],
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: _getStatusColor(order['status']),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildOrderListTile(Map<String, dynamic> order) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: _parseColor(order['color']).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: Icon(
-              Icons.shopping_bag_rounded,
-              color: _parseColor(order['color']),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  order['product'],
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF22223B),
-                  ),
-                ),
-                Text(
-                  'Order ID: ${order['id']} • ${order['date']}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                order['amount'],
-                style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _parseColor(order['color']),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(order['status']).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  order['status'],
-                  style: GoogleFonts.poppins(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: _getStatusColor(order['status']),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'delivered':
-        return Colors.green;
-      case 'in transit':
-        return const Color(0xFFB5C7F7);
-      case 'processing':
-        return const Color(0xFFF9E79F);
-      default:
-        return Colors.grey;
-    }
-  }
-
-  // Helper method to parse color string to Color object
-  Color _parseColor(dynamic colorValue) {
-    if (colorValue == null) {
-      return const Color(0xFFB5C7F7);
-    }
-    
-    if (colorValue is Color) {
-      return colorValue;
-    }
-    
-    if (colorValue is String) {
-      try {
-        String hex = colorValue.startsWith('#') ? colorValue.substring(1) : colorValue;
-        
-        if (hex.length == 6) {
-          return Color(int.parse('FF$hex', radix: 16));
-        } else if (hex.length == 8) {
-          return Color(int.parse(hex, radix: 16));
-        } else {
-          return const Color(0xFFB5C7F7);
-        }
-      } catch (e) {
-        return const Color(0xFFB5C7F7);
-      }
-    }
-    
-    return const Color(0xFFB5C7F7);
-  }
-
-  // Helper method to safely parse numeric values
-  double _parseDouble(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is double) return value;
-    if (value is int) return value.toDouble();
-    if (value is String) {
-      return double.tryParse(value) ?? 0.0;
-    }
-    return 0.0;
-  }
 }

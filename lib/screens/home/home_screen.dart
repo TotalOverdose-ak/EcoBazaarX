@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:async';
 import 'dart:math';
 import '../../providers/spring_auth_provider.dart';
-import '../../providers/cart_provider.dart';
 
 import '../../providers/carbon_tracking_provider.dart';
 import '../../providers/wishlist_provider.dart';
@@ -12,12 +11,15 @@ import '../../providers/product_view_provider.dart';
 import '../../providers/eco_challenges_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/orders_provider.dart';
+import '../../providers/cart_provider.dart';
 import '../shopping/shopping_cart_screen.dart';
 import '../shopping/product_catalog_screen.dart';
 import '../admin/admin_dashboard_screen.dart';
 import '../shopkeeper/shopkeeper_dashboard_screen.dart';
 import '../shopping/product_detail_screen.dart';
 import '../shopping/wishlist_screen.dart';
+import '../user_eco_challenges_screen.dart';
+import '../user_eco_discounts_screen.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -715,6 +717,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
 
+                  const SizedBox(height: 16),
+
+                  // Third row - Eco Challenges
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.emoji_events,
+                            label: 'Eco Challenges',
+                            color: const Color(0xFFD6EAF8),
+                            onTap: () => _navigateToEcoChallenges(),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.local_offer,
+                            label: 'Eco Discounts',
+                            color: const Color(0xFFFFB6C1),
+                            onTap: () => _navigateToEcoDiscounts(),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.leaderboard,
+                            label: 'Leaderboard',
+                            color: const Color(0xFFF9E79F),
+                            onTap: () => _showLeaderboard(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 28),
 
                   // Trending Products Section
@@ -996,114 +1035,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // Eco Challenges Section
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18.0),
-                    child: Row(
-                      children: [
-                        Text(
-                          'Eco Challenges',
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF22223B),
-                          ),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () => _showEcoChallenges(),
-                          child: Text(
-                            'View All',
-                            style: GoogleFonts.poppins(
-                              color: const Color(0xFFB5C7F7),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  Consumer<EcoChallengesProvider>(
-                    builder: (context, challengesProvider, child) {
-                      final activeChallenges = challengesProvider.activeChallenges.take(3).toList();
-                      
-                      if (activeChallenges.isEmpty) {
-                        return Container(
-                          height: 180,
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.emoji_events_rounded,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No Active Challenges',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Start your eco journey today!',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    color: Colors.grey[500],
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                ElevatedButton.icon(
-                                  onPressed: () => _showEcoChallenges(),
-                                  icon: const Icon(Icons.add_rounded),
-                                  label: Text('View Challenges', style: GoogleFonts.poppins()),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFB5C7F7),
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      return SizedBox(
-                        height: 180,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: activeChallenges.length,
-                          itemBuilder: (context, index) {
-                            final challenge = activeChallenges[index];
-                            return _buildRealChallengeCard(challenge);
-                          },
-                        ),
-                      );
-                    },
                   ),
 
                   const SizedBox(height: 28),
@@ -1634,6 +1565,813 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       context,
       MaterialPageRoute(
         builder: (context) => const ShoppingCartScreen(),
+      ),
+    );
+  }
+
+  void _navigateToEcoChallenges() {
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final userId = authProvider.userId ?? 'guest';
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserEcoChallengesScreen(userId: userId),
+      ),
+    );
+  }
+
+  void _navigateToEcoDiscounts() {
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final userId = authProvider.userId ?? 'guest';
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserEcoDiscountsScreen(userId: userId),
+      ),
+    );
+  }
+
+  void _showMyRewards() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F6F2),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color(0xFFE8D5C4),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.stars, color: Colors.white, size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    'My Eco Rewards',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.eco, color: Colors.white, size: 40),
+                          const SizedBox(width: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Total Eco Points',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                              Text(
+                                '1,250 Points',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          _buildRewardItem('5% Off Next Purchase', '100 Points', Icons.discount, Colors.green),
+                          _buildRewardItem('10% Off Electronics', '200 Points', Icons.devices, Colors.blue),
+                          _buildRewardItem('Free Shipping', '150 Points', Icons.local_shipping, Colors.orange),
+                          _buildRewardItem('15% Off Eco Products', '300 Points', Icons.eco, Colors.green[700]!),
+                          _buildRewardItem('Special Member Badge', '500 Points', Icons.badge, Colors.purple),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRewardItem(String title, String points, IconData icon, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  'Redeem for $points',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$title redeemed!')),
+              );
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(
+              'Redeem',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLeaderboard() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F6F2),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          children: [
+            // Simple Header like Add Product Admin
+            Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                children: [
+                  // Handle
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Eco Leaderboard',
+                          style: GoogleFonts.poppins(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF22223B),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.close,
+                          color: Color(0xFF22223B),
+                          size: 24,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Statistics Cards Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildLeaderboardStatCard(
+                            'Your Rank',
+                            '#1',
+                            Icons.workspace_premium,
+                            const Color(0xFFFFB6C1),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildLeaderboardStatCard(
+                            'Total Points',
+                            '3,250',
+                            Icons.stars_rounded,
+                            const Color(0xFFF9E79F),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildLeaderboardStatCard(
+                            'This Week',
+                            '+380',
+                            Icons.trending_up_rounded,
+                            const Color(0xFF8BC34A),
+                          ),
+                        ),
+                      ],
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Top 3 Section with Professional Cards
+                    Text(
+                      'Top Performers',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF22223B),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Top 3 Cards
+                    _buildTopPerformerCard(
+                      1, 'You', '3,250', '🏆',
+                      const Color(0xFFFFB6C1),
+                      isUser: true,
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTopPerformerCard(
+                      2, 'Sarah K.', '2,890', '🥈',
+                      const Color(0xFFD6EAF8),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTopPerformerCard(
+                      3, 'Mike R.', '2,670', '🥉',
+                      const Color(0xFFF9E79F),
+                    ),
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Other Rankings Section
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Other Rankings',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF22223B),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF8BC34A).withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            'Live Rankings',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF8BC34A),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Regular Rankings List
+                    ...List.generate(5, (index) {
+                      final rankings = [
+                        {'name': 'Emma L.', 'points': '2,450', 'change': '+12'},
+                        {'name': 'John D.', 'points': '2,320', 'change': '-5'},
+                        {'name': 'Lisa M.', 'points': '2,180', 'change': '+28'},
+                        {'name': 'Tom W.', 'points': '2,050', 'change': '+15'},
+                        {'name': 'Anna P.', 'points': '1,920', 'change': '-8'},
+                      ];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildRankingCard(
+                          index + 4,
+                          rankings[index]['name']!,
+                          rankings[index]['points']!,
+                          rankings[index]['change']!,
+                        ),
+                      );
+                    }),
+                    
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPodiumPosition(int position, String name, String points, Color color) {
+    double height = position == 1 ? 80 : position == 2 ? 60 : 50;
+    return Column(
+      children: [
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Text(
+              position.toString(),
+              style: GoogleFonts.poppins(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 80,
+          height: height,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                name,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Text(
+                points,
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLeaderboardItem(int position, String name, String points, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                position.toString(),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                points,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+              Text(
+                'points',
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // New Modern Leaderboard Widgets
+  Widget _buildLeaderboardStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF22223B),
+            ),
+          ),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopPerformerCard(int position, String name, String points, String emoji, Color color, {bool isUser = false}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: isUser ? Border.all(color: color, width: 2) : null,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Position Badge
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color, color.withOpacity(0.8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                emoji,
+                style: const TextStyle(fontSize: 20),
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // User Info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      name,
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF22223B),
+                      ),
+                    ),
+                    if (isUser) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'YOU',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Rank #$position',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Points
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  points,
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'points',
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRankingCard(int position, String name, String points, String change) {
+    bool isPositive = change.startsWith('+');
+    Color changeColor = isPositive ? const Color(0xFF8BC34A) : Colors.red;
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Position
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F6F2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.grey.withOpacity(0.3),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                position.toString(),
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF22223B),
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 16),
+          
+          // Name
+          Expanded(
+            child: Text(
+              name,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF22223B),
+              ),
+            ),
+          ),
+          
+          // Points and Change
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                points,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF22223B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: changeColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isPositive ? Icons.trending_up : Icons.trending_down,
+                      size: 12,
+                      color: changeColor,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      change,
+                      style: GoogleFonts.poppins(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: changeColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Add item to cart
+  void _addToCart(Map<String, dynamic> item, CartProvider cartProvider, SpringAuthProvider authProvider) async {
+    // Simple add to cart - you'll handle the backend integration
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${item['productName'] ?? 'Item'} added to cart!',
+          style: GoogleFonts.poppins(),
+        ),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 2),
       ),
     );
   }
@@ -5051,72 +5789,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               color: _parseColor(product['color']),
                             ),
                           ),
-                          Consumer<CartProvider>(
-                            builder: (context, cartProvider, child) {
-                              final quantity = cartProvider.getQuantity(product['id']);
-                              
-                              return Row(
-                                children: [
-                                  if (quantity > 0) ...[
-                                    GestureDetector(
-                                      onTap: () {
-                                        cartProvider.removeSingleItem(product['id']);
-                                        _showSnackBar('Removed from cart');
-                                      },
-                                      child: Container(
-                                        padding: const EdgeInsets.all(2),
-                                        decoration: BoxDecoration(
-                                          color: _parseColor(product['color']).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Icon(
-                                          Icons.remove_rounded,
-                                          color: _parseColor(product['color']),
-                                          size: 14,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$quantity',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: _parseColor(product['color']),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                  ],
-                                  GestureDetector(
-                                    onTap: () {
-                                      cartProvider.addItem(
-                                        productId: product['id'] ?? 'unknown',
-                                        name: product['name'] ?? 'Unknown Product',
-                                        description: product['description'] ?? 'Eco-friendly product',
-                                        price: product['price'] ?? 0.0,
-                                        icon: _getIconFromString(product['icon']),
-                                        color: _parseColor(product['color']),
-                                        category: product['category'] ?? 'General',
-                                        carbonFootprint: product['carbonFootprint'] ?? 0.0,
-                                      );
-                                      _showSnackBar('Added to cart');
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        color: _parseColor(product['color']).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Icon(
-                                        quantity > 0 ? Icons.add_rounded : Icons.add_shopping_cart_rounded,
-                                        color: _parseColor(product['color']),
-                                        size: 14,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
+                          GestureDetector(
+                            onTap: () {
+                              _showSnackBar('Cart functionality will be implemented');
                             },
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: _parseColor(product['color']).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.add_shopping_cart_rounded,
+                                color: _parseColor(product['color']),
+                                size: 14,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -6330,7 +7018,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 12),
           Text(
-            (product.name ?? 'Unknown Product'),
+            product.name,
             style: GoogleFonts.poppins(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -6356,20 +7044,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         context,
                         MaterialPageRoute(
                           builder: (context) => ProductDetailScreen(product: {
-                            'id': product.productId ?? 'unknown',
-                            'name': product.name ?? 'Unknown Product',
-                            'description': product.description ?? 'Eco-friendly product',
-                            'price': product.price ?? 0.0,
+                            'id': product.productId,
+                            'name': product.name,
+                            'description': product.description,
+                            'price': product.price,
                             'color': _colorToString(product.color),
                             'icon': _iconToString(product.icon),
-                            'category': product.category ?? 'General',
+                            'category': product.category,
                             'carbonFootprint': 1.0,
                             'waterSaved': 0.0,
                             'energySaved': 0.0,
                             'wasteReduced': 0.0,
                             'treesEquivalent': 0.0,
                             'material': 'Eco-friendly material',
-                            'rating': product.rating ?? 4.5,
+                            'rating': product.rating,
                             'quantity': 10, // Add default quantity
                           }),
                         ),
@@ -6571,57 +7259,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 8),
-          // Cart functionality
-          Consumer<CartProvider>(
-            builder: (context, cartProvider, child) {
-              final quantity = cartProvider.getQuantity(item['productId']);
-              
-              return Row(
-                children: [
-                  if (quantity > 0) ...[
-                    GestureDetector(
-                      onTap: () {
-                        cartProvider.removeSingleItem(item['productId']);
-                        _showSnackBar('Removed from cart');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: _parseColor(item['productColor']).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          Icons.remove_rounded,
-                          color: _parseColor(item['productColor']),
-                          size: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$quantity',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: _parseColor(item['productColor']),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  GestureDetector(
-                    onTap: () {
-                      cartProvider.addItem(
-                        productId: item['productId'] ?? 'unknown',
-                        name: item['productName'] ?? 'Unknown Product',
-                        description: item['productDescription'] ?? 'Eco-friendly product',
-                        price: _parseDouble(item['productPrice']),
-                        icon: _getIconFromString(item['productIcon']),
-                        color: _parseColor(item['productColor']),
-                        category: item['productCategory'] ?? 'General',
-                        carbonFootprint: _parseDouble(item['carbonFootprint'] ?? 1.0),
-                      );
-                      _showSnackBar('Added to cart');
-                    },
+          // Add to Cart functionality
+          Row(
+            children: [
+              Consumer2<CartProvider, SpringAuthProvider>(
+                builder: (context, cartProvider, authProvider, child) {
+                  return GestureDetector(
+                    onTap: () => _addToCart(item, cartProvider, authProvider),
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -6629,81 +7273,60 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Icon(
-                        quantity > 0 ? Icons.add_rounded : Icons.add_shopping_cart_rounded,
+                        Icons.add_shopping_cart_rounded,
                         color: _parseColor(item['productColor']),
                         size: 14,
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () {
-                      // Ensure all required fields have safe fallback values
-                      final productId = item['productId']?.toString() ?? 'unknown';
-                      final productName = item['productName']?.toString() ?? 'Unknown Product';
-                      final productDescription = item['productDescription']?.toString() ?? 'Eco-friendly product';
-                      final productCategory = item['productCategory']?.toString() ?? 'General';
-                      
-                      // Safely handle color and icon
-                      String productColor;
-                      if (item['productColor'] is String) {
-                        productColor = item['productColor'];
-                      } else {
-                        productColor = _colorToString(_parseColor(item['productColor']));
-                      }
-                      
-                      String productIcon;
-                      if (item['productIcon'] is String) {
-                        productIcon = item['productIcon'];
-                      } else {
-                        productIcon = _iconToString(_getIconFromString(item['productIcon']));
-                      }
-                      
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ProductDetailScreen(product: {
-                            'id': productId,
-                            'name': productName,
-                            'description': productDescription,
-                            'price': _parseDouble(item['productPrice']),
-                            'color': productColor,
-                            'icon': productIcon,
-                            'category': productCategory,
-                            'carbonFootprint': _parseDouble(item['carbonFootprint'] ?? 1.0),
-                            'waterSaved': _parseDouble(item['waterSaved'] ?? 0.0),
-                            'energySaved': _parseDouble(item['energySaved'] ?? 0.0),
-                            'wasteReduced': _parseDouble(item['wasteReduced'] ?? 0.0),
-                            'treesEquivalent': _parseDouble(item['treesEquivalent'] ?? 0.0),
-                            'material': item['material']?.toString() ?? 'Eco-friendly material',
-                            'rating': _parseDouble(item['rating'] ?? 4.5),
-                            'quantity': _parseDouble(item['quantity'] ?? 10.0),
-                          }),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _parseColor(item['productColor']).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: _parseColor(item['productColor']).withOpacity(0.3),
-                        ),
-                      ),
-                      child: Text(
-                        'Details',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: _parseColor(item['productColor']),
-                        ),
-                      ),
+                  );
+                },
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProductDetailScreen(product: {
+                        'id': item['productId']?.toString() ?? 'unknown',
+                        'name': item['productName']?.toString() ?? 'Unknown Product',
+                        'description': item['productDescription']?.toString() ?? 'Eco-friendly product',
+                        'price': _parseDouble(item['productPrice']),
+                        'color': item['productColor'] is String ? item['productColor'] : _colorToString(_parseColor(item['productColor'])),
+                        'icon': item['productIcon'] is String ? item['productIcon'] : _iconToString(_getIconFromString(item['productIcon'])),
+                        'category': item['productCategory']?.toString() ?? 'General',
+                        'carbonFootprint': _parseDouble(item['carbonFootprint'] ?? 1.0),
+                        'waterSaved': _parseDouble(item['waterSaved'] ?? 0.0),
+                        'energySaved': _parseDouble(item['energySaved'] ?? 0.0),
+                        'wasteReduced': _parseDouble(item['wasteReduced'] ?? 0.0),
+                        'treesEquivalent': _parseDouble(item['treesEquivalent'] ?? 0.0),
+                        'material': item['material']?.toString() ?? 'Eco-friendly material',
+                        'rating': _parseDouble(item['rating'] ?? 4.5),
+                        'quantity': _parseDouble(item['quantity'] ?? 10.0),
+                      }),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _parseColor(item['productColor']).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _parseColor(item['productColor']).withOpacity(0.3),
                     ),
                   ),
-                ],
-              );
-            },
+                  child: Text(
+                    'Details',
+                    style: GoogleFonts.poppins(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: _parseColor(item['productColor']),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/wishlist_provider.dart';
 import '../../providers/product_view_provider.dart';
@@ -67,36 +67,75 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     super.dispose();
   }
 
-  void _addToCart() {
+  // Add item to cart
+  void _addToCart() async {
     final cartProvider = Provider.of<CartProvider>(context, listen: false);
+    final authProvider = Provider.of<SpringAuthProvider>(context, listen: false);
+    final userId = authProvider.userId ?? authProvider.userEmail ?? 'demo_user';
     
-    for (int i = 0; i < _quantity; i++) {
-      cartProvider.addItem(
+    print('🛒 Product Detail: Adding ${_quantity}x ${widget.product['name']} to cart for userId: $userId');
+    
+    try {
+      final success = await cartProvider.addItem(
+        userId: userId,
         productId: widget.product['id'],
-        name: widget.product['name'],
-        description: widget.product['description'],
+        productName: widget.product['name'],
         price: _parseDouble(widget.product['price']),
-        icon: _getIconFromString(widget.product['icon']),
-        color: _parseColor(widget.product['color']),
         category: widget.product['category'],
         carbonFootprint: _parseDouble(widget.product['carbonFootprint']),
+        quantity: _quantity,
       );
-    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${widget.product['name']} added to cart!',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: const Color(0xFFB5C7F7),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${widget.product['name']} added to cart!',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: const Color(0xFFB5C7F7),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to add to cart. Please try again.',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: Colors.red[400],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error adding to cart: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Error adding to cart. Please try again.',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            backgroundColor: Colors.red[400],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -545,13 +584,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                                   size: 24,
                                 ),
                                 const SizedBox(width: 12),
-                                                                 Text(
-                                   'Add to Cart - ₹${(_quantity * _parseDouble(widget.product['price'])).toStringAsFixed(2)}',
-                                   style: GoogleFonts.poppins(
-                                     fontSize: 16,
-                                     fontWeight: FontWeight.w600,
-                                   ),
-                                 ),
+                                Text(
+                                  'Add to Cart - ₹${(_quantity * _parseDouble(widget.product['price'])).toStringAsFixed(2)}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ],
                             ),
                           ),

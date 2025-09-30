@@ -3,11 +3,16 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // DISABLED - Using Spring Boot Backend
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+import 'package:http/http.dart' as http;
 import '../../providers/spring_auth_provider.dart';
 import '../../providers/carbon_tracking_provider.dart';
 import '../../providers/store_provider.dart';
 import '../../providers/product_provider.dart';
+import '../../services/user_service.dart';
+import 'admin_eco_challenges_screen.dart';
+import 'admin_order_tracking_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -20,6 +25,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
+  
+  // Backend URL
+  final String baseUrl = 'http://localhost:10000';
+  
+  // Cache for wishlist analytics
+  List<dynamic>? _cachedWishlistData;
+  List<dynamic>? _cachedPopularProducts;
+  DateTime? _lastFetchTime;
+  final Duration _cacheExpiry = Duration(minutes: 5);
+  
+  // Future variables to prevent infinite loops
+  Future<List<dynamic>>? _wishlistAnalyticsFuture;
+  Future<List<dynamic>>? _popularProductsFuture;
+  bool _hasApiError = false;
+  
+  // User cache for displaying real names instead of IDs
+  Map<int, Map<String, dynamic>> _userCache = {};
   
   // Real-time data variables
   Timer? _realTimeTimer;
@@ -99,33 +121,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
    List<Map<String, dynamic>> _users = [];
    bool _isLoadingUsers = false;
    
-     // Load users from Firestore
+     // Load users from MySQL database via Spring Boot API
   Future<void> _loadUsersFromFirestore() async {
     setState(() {
       _isLoadingUsers = true;
     });
     
     try {
-      // TODO: Replace with Spring Boot API call
-      // final QuerySnapshot snapshot = await FirebaseFirestore.instance
-      //     .collection('users')
-      //     .orderBy('createdAt', descending: true)
-      //     .get();
+      // Call Spring Boot API to get all users
+      final response = await UserService.getAllUsers();
       
-      // Placeholder data for now
-      final List<Map<String, dynamic>> usersData = [];
-      
-      _users = usersData.map((data) {
-        return {
-          'id': data['id'] ?? 'unknown',
-          'name': data['name'] ?? 'Unknown',
-          'email': data['email'] ?? '',
-          'role': _getRoleDisplayName(data['role']),
-          'status': data['status'] ?? 'Active',
-          'joinDate': data['joinDate']?.toString() ?? DateTime.now().toIso8601String().split('T')[0],
-          'createdAt': data['createdAt'],
-        };
-     }).toList();
+      if (response['success'] == true) {
+        final List<dynamic> usersData = response['users'] ?? [];
+        
+        _users = usersData.map<Map<String, dynamic>>((data) {
+          return {
+            'id': data['id']?.toString() ?? 'unknown',
+            'name': data['name'] ?? 'Unknown',
+            'email': data['email'] ?? '',
+            'role': _getRoleDisplayName(data['role']),
+            'status': (data['isActive'] == true) ? 'Active' : 'Inactive',
+            'joinDate': data['createdAt']?.toString().split('T')[0] ?? DateTime.now().toIso8601String().split('T')[0],
+            'createdAt': data['createdAt'],
+          };
+        }).toList();
+        
+        print('Loaded ${_users.length} users from MySQL database');
+      } else {
+        print('Failed to load users: ${response['message']}');
+      }
       
       setState(() {
         _isLoadingUsers = false;
@@ -216,6 +240,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final carbonProvider = Provider.of<CarbonTrackingProvider>(context, listen: false);
         carbonProvider.loadSampleData();
         
+        // Initialize stores from MySQL backend
+        final storeProvider = Provider.of<StoreProvider>(context, listen: false);
+        storeProvider.initializeStores();
+        
         // Initialize products after build is complete
         _initializeProducts();
       } catch (e) {
@@ -233,6 +261,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       });
     });
   }
+
+    void _showOrderTracking(BuildContext context) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const AdminOrderTrackingScreen(),
+        ),
+      );
+    }
+
+    void _showEcoDiscounts(BuildContext context) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Eco Discounts feature - Manage eco-friendly discounts and offers'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   
   void _startRealTimeUpdates() {
     _realTimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
@@ -423,10 +470,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       'Customer engagement increased',
     ];
     
-    List<String> storeNames = storeProvider.allStores.map((store) => store['name'] as String).toList();
+    List<String> storeNames = storeProvider.allStores
+        .map((store) => store['name'] as String?)
+        .where((name) => name != null)
+        .cast<String>()
+        .toList();
+    
+    // If no valid store names, use default
+    if (storeNames.isEmpty) {
+      storeNames = ['EcoStore', 'GreenShop', 'EcoMarket', 'SustainableStore'];
+    }
+    
     List<String> types = ['order', 'inventory', 'review', 'milestone', 'product', 'performance', 'carbon', 'engagement'];
     
-    if (_storeActivities.length < 10) {
+    if (_storeActivities.length < 10 && storeNames.isNotEmpty) {
       final newActivity = {
         'store': storeNames[Random().nextInt(storeNames.length)],
         'action': actions[Random().nextInt(actions.length)],
@@ -435,7 +492,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         'type': types[Random().nextInt(types.length)],
       };
       
-      _storeActivities.insert(0, newActivity);
+      setState(() {
+        _storeActivities.insert(0, newActivity);
+      });
     }
     } catch (e) {
       print('Error adding store activity: $e');
@@ -584,7 +643,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   children: [
                     Consumer<CarbonTrackingProvider>(
                       builder: (context, carbonProvider, child) {
-                        final carbonSaved = carbonProvider.totalCarbonSaved ?? 0.0;
+                          final carbonSaved = carbonProvider.totalCarbonSaved;
                         return _PastelStatCard(
                           title: 'Carbon Saved',
                           value: '${carbonSaved.toStringAsFixed(1)}kg',
@@ -596,7 +655,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     const SizedBox(width: 16),
                     Consumer<CarbonTrackingProvider>(
                       builder: (context, carbonProvider, child) {
-                        final revenue = carbonProvider.totalRevenue ?? 0.0;
+                          final revenue = carbonProvider.totalRevenue;
                         return _PastelStatCard(
                           title: 'Revenue',
                           value: '₹${(revenue / 100000).toStringAsFixed(1)}L',
@@ -637,7 +696,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: _PastelActionCard(
                             icon: Icons.people_rounded,
                             label: 'Manage Users',
-                            color: const Color(0xFFB5C7F7),
+                            color: const Color(0xFFD6EAF8),
                             onTap: () => _showUserManagement(context),
                           ),
                         ),
@@ -646,7 +705,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: _PastelActionCard(
                             icon: Icons.add_business_rounded,
                             label: 'Add Store',
-                            color: const Color(0xFFE8D5C4),
+                            color: const Color(0xFFF9E79F),
                             onTap: () => _showAddStoreDialog(context),
                           ),
                         ),
@@ -655,7 +714,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: _PastelActionCard(
                             icon: Icons.inventory_rounded,
                             label: 'Manage Products',
-                            color: const Color(0xFFB5C7F7),
+                            color: const Color(0xFFE8D5C4),
                             onTap: () => _showProductManagement(context),
                           ),
                         ),
@@ -678,7 +737,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: _PastelActionCard(
                             icon: Icons.store_rounded,
                             label: 'Store Analytics',
-                            color: const Color(0xFFF9E79F),
+                            color: const Color(0xFFD6EAF8),
                             onTap: () => _showStoreAnalytics(context),
                           ),
                         ),
@@ -687,21 +746,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           child: _PastelActionCard(
                             icon: Icons.eco_rounded,
                             label: 'Carbon Reports',
-                            color: const Color(0xFFD6EAF8),
+                            color: const Color(0xFFF9E79F),
                             onTap: () => _showCarbonReports(context),
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Third row - 2 buttons
+                    // Third row - 3 buttons
                     Row(
                       children: [
                         Expanded(
                           child: _PastelActionCard(
                             icon: Icons.analytics_rounded,
                             label: 'Product Analytics',
-                            color: const Color(0xFFF9E79F),
+                            color: const Color(0xFFE8D5C4),
                             onTap: () => _showProductAnalytics(context),
                           ),
                         ),
@@ -715,7 +774,46 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
-                        const Expanded(child: SizedBox()), // Empty space to maintain alignment
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.favorite_rounded,
+                            label: 'Wishlist Analytics',
+                            color: const Color(0xFFF9E79F),
+                            onTap: () => _showWishlistAnalytics(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Fourth row - Eco Challenges Management
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.eco_rounded,
+                            label: 'Eco Challenges',
+                            color: const Color(0xFFD6EAF8),
+                            onTap: () => _showEcoChallenges(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.track_changes,
+                            label: 'Order Tracking',
+                            color: const Color(0xFFE8D5C4),
+                            onTap: () => _showOrderTracking(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _PastelActionCard(
+                            icon: Icons.discount,
+                            label: 'Eco Discounts',
+                            color: const Color(0xFFF9E79F),
+                            onTap: () => _showEcoDiscounts(context),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -2488,6 +2586,84 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     );
   }
 
+  void _showWishlistAnalytics(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.9,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F6F2),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(32),
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 16),
+              width: 50,
+              height: 5,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2.5),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                children: [
+                  Text(
+                    'Wishlist Analytics',
+                    style: GoogleFonts.poppins(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF22223B),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      onPressed: () => _refreshWishlistAnalytics(),
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.blue),
+                      tooltip: 'Refresh Data',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                    color: Colors.grey[600],
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: _buildWishlistAnalyticsContent(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showEcoChallenges(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AdminEcoChallengesScreen(),
+      ),
+    );
+  }
+
   void _showCarbonReports(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -3340,127 +3516,160 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   void _showAddUserDialog(BuildContext context) {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
+    final passwordController = TextEditingController();
     String selectedRole = 'Customer';
     String selectedStatus = 'Active';
+    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add New User', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Add New User', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Full Name',
+                  border: OutlineInputBorder(),
+                ),
               ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Role',
+                  border: OutlineInputBorder(),
+                ),
+                initialValue: selectedRole,
+                items: const [
+                  DropdownMenuItem(value: 'Customer', child: Text('Customer')),
+                  DropdownMenuItem(value: 'Shopkeeper', child: Text('Shopkeeper')),
+                  DropdownMenuItem(value: 'Admin', child: Text('Admin')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() {
+                      selectedRole = value;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Status',
+                  border: OutlineInputBorder(),
+                ),
+                initialValue: selectedStatus,
+                items: const [
+                  DropdownMenuItem(value: 'Active', child: Text('Active')),
+                  DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setDialogState(() {
+                      selectedStatus = value;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Role',
-                border: OutlineInputBorder(),
-              ),
-              initialValue: selectedRole,
-              items: const [
-                DropdownMenuItem(value: 'Customer', child: Text('Customer')),
-                DropdownMenuItem(value: 'Shopkeeper', child: Text('Shopkeeper')),
-                DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  selectedRole = value;
+            ElevatedButton(
+              onPressed: isLoading ? null : () async {
+                if (nameController.text.isNotEmpty && 
+                    emailController.text.isNotEmpty &&
+                    passwordController.text.isNotEmpty) {
+                  
+                  setDialogState(() {
+                    isLoading = true;
+                  });
+                  
+                  try {
+                    // Convert role string to backend format
+                    String backendRole = selectedRole.toUpperCase();
+                    bool isActive = selectedStatus == 'Active';
+                    
+                    // Call backend API to create user
+                    final response = await UserService.createUser(
+                      name: nameController.text.trim(),
+                      email: emailController.text.trim(),
+                      password: passwordController.text.trim(),
+                      role: backendRole,
+                      isActive: isActive,
+                    );
+                    
+                    if (response['success'] == true) {
+                      // Refresh users list
+                      await _loadUsersFromFirestore();
+                      
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('User "${nameController.text}" added successfully!', 
+                            style: GoogleFonts.poppins()),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } else {
+                      throw Exception(response['message'] ?? 'Failed to create user');
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error: ${e.toString()}', 
+                          style: GoogleFonts.poppins()),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  } finally {
+                    setDialogState(() {
+                      isLoading = false;
+                    });
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Please fill all fields!', style: GoogleFonts.poppins()),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
-              ),
-              initialValue: selectedStatus,
-              items: const [
-                DropdownMenuItem(value: 'Active', child: Text('Active')),
-                DropdownMenuItem(value: 'Inactive', child: Text('Inactive')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  selectedStatus = value;
-                }
-              },
+              child: isLoading 
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Add User'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty && emailController.text.isNotEmpty) {
-                // Convert role string to UserRole enum
-                UserRole role;
-                switch (selectedRole) {
-                  case 'Customer':
-                    role = UserRole.customer;
-                    break;
-                  case 'Shopkeeper':
-                    role = UserRole.shopkeeper;
-                    break;
-                  case 'Admin':
-                    role = UserRole.admin;
-                    break;
-                  default:
-                    role = UserRole.customer;
-                }
-                
-                // Add user to SpringAuthProvider's static list
-                final newUser = {
-                  'id': 'user_${SpringAuthProvider.allUsers.length + 1}',
-                  'name': nameController.text,
-                  'email': emailController.text,
-                  'role': role,
-                  'status': selectedStatus,
-                  'joinDate': DateTime.now().toIso8601String().split('T')[0],
-                };
-                
-                SpringAuthProvider.allUsers.add(newUser);
-                
-                                                  setState(() {
-                  // Refresh the UI
-                 });
-                 
-                 Navigator.pop(context);
-                 ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(
-                     content: Text('User "${nameController.text}" added successfully!', style: GoogleFonts.poppins()),
-                     backgroundColor: Colors.green,
-                   ),
-                 );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Please fill all fields!', style: GoogleFonts.poppins()),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            child: const Text('Add User'),
-          ),
-        ],
       ),
     );
   }
@@ -4197,10 +4406,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     final performance = (store['performance'] as double?) ?? 0.0;
     final category = store['category'] as String? ?? 'Other';
     final color = _getCategoryColor(category);
-    final name = store['name'] as String? ?? 'Unknown Store';
+    // Handle both 'name' and 'storeName' fields from backend
+    final name = store['name'] as String? ?? store['storeName'] as String? ?? 'Unknown Store';
     final trend = store['trend'] as String? ?? 'flat';
     final revenue = store['revenue'] as num? ?? 0;
-    final products = store['products'] as num? ?? 0;
+    final products = store['products'] as num? ?? store['totalProducts'] as num? ?? 0;
     final onlineUsers = store['onlineUsers'] as num? ?? 0;
     
     IconData getTrendIcon(String trend) {
@@ -4357,7 +4567,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
      final performance = (store['performance'] as double?) ?? 0.0;
      final category = store['category'] as String? ?? 'Other';
      final color = _getCategoryColor(category);
-     final name = store['name'] as String? ?? 'Unknown Store';
+     final name = store['name'] as String? ?? store['storeName'] as String? ?? 'Unknown Store';
      final lastUpdated = store['lastUpdated'] as DateTime? ?? DateTime.now();
      final timeAgo = _getTimeAgo(lastUpdated);
      final products = store['products'] as num? ?? 0;
@@ -4731,7 +4941,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               CircleAvatar(
                 backgroundColor: const Color(0xFFB5C7F7),
                 child: Text(
-                  store['name'][0],
+                  (store['name'] as String?)?.isNotEmpty == true ? store['name'][0].toUpperCase() : 'S',
                   style: const TextStyle(
                     color: Color(0xFF22223B),
                     fontWeight: FontWeight.bold,
@@ -4904,7 +5114,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           CircleAvatar(
             backgroundColor: const Color(0xFFB5C7F7),
             child: Text(
-              store['name'][0],
+              (store['name'] as String?)?.isNotEmpty == true ? store['name'][0].toUpperCase() : 'S',
               style: const TextStyle(
                 color: Color(0xFF22223B),
                 fontWeight: FontWeight.bold,
@@ -5351,7 +5561,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               CircleAvatar(
                 backgroundColor: const Color(0xFFB5C7F7),
                 child: Text(
-                  store['name'][0].toUpperCase(),
+                  (store['name'] as String?)?.isNotEmpty == true ? store['name'][0].toUpperCase() : 'S',
                   style: const TextStyle(
                     color: Color(0xFF22223B),
                     fontWeight: FontWeight.bold,
@@ -5638,7 +5848,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ElevatedButton.icon(
             onPressed: () {
               final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-              storeProvider.deleteStore(store['id']);
+              storeProvider.deleteStore(store['id'].toString());
               Navigator.pop(context);
               
               ScaffoldMessenger.of(context).showSnackBar(
@@ -5698,24 +5908,59 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     bool hasPickup = true;
     bool isPremium = false;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: Row(
-              children: [
-                Icon(Icons.add_business_rounded, color: const Color(0xFFE8D5C4), size: 28),
-                const SizedBox(width: 12),
-                Text('Add New Store', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 20)),
-              ],
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.9,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF7F6F2),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(32),
+              ),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-          mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+            child: Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 16),
+                  width: 50,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2.5),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Add New Store',
+                        style: GoogleFonts.poppins(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF22223B),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded),
+                        color: Colors.grey[600],
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
                   // Basic Information Section
                   _buildSectionHeader('Basic Information', Icons.store_rounded),
                   const SizedBox(height: 12),
@@ -6017,16 +6262,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                       selectedStatus,
                       selectedSustainabilityLevel,
                     ),
-                ],
-              ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-                child: Text('Cancel', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-          ),
-              ElevatedButton.icon(
-            onPressed: () {
+                  
+                  // Add Button
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
                   if (nameController.text.trim().isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -6170,7 +6412,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
-            ],
+            ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -6184,7 +6433,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Delete Store', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to delete store "${store['name']}"?', style: GoogleFonts.poppins()),
+        content: Text('Are you sure you want to delete store "${(store['name'] as String?) ?? (store['storeName'] as String?) ?? 'Unknown Store'}"?', style: GoogleFonts.poppins()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -6194,7 +6443,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             onPressed: () async {
               try {
                 final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-                final result = await storeProvider.deleteStore(store['id']);
+                final result = await storeProvider.deleteStore(store['id'].toString());
                 
                 Navigator.pop(context);
                 
@@ -6416,16 +6665,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     'name': nameController.text.trim(),
                     'description': descriptionController.text.trim(),
                     'category': selectedCategory,
-                    'location': locationController.text.trim(),
-                    'ownerName': ownerNameController.text.trim(),
-                    'ownerEmail': ownerEmailController.text.trim(),
-                    'ownerPhone': ownerPhoneController.text.trim(),
+                    'ownerId': store['ownerId'] ?? 'admin', // Keep existing ownerId
+                    'email': ownerEmailController.text.trim(),
+                    'phone': ownerPhoneController.text.trim(),
                     'address': addressController.text.trim(),
-                    'isActive': isActive,
-                    'updatedAt': DateTime.now().toIso8601String(),
                   };
                   
-                  final result = await storeProvider.updateStore(store['id'], updateData);
+                  final result = await storeProvider.updateStore(store['id'].toString(), updateData);
                   
                   Navigator.pop(context);
                   
@@ -6532,7 +6778,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
             onPressed: () async {
               try {
                 final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-                final result = await storeProvider.deleteStore(store['id']);
+                final result = await storeProvider.deleteStore(store['id'].toString());
                 
                 Navigator.pop(context);
                 
@@ -6580,7 +6826,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   void _toggleStoreStatus(Map<String, dynamic> store) async {
     try {
       final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-      final result = await storeProvider.toggleStoreStatus(store['id']);
+      final result = await storeProvider.toggleStoreStatus(store['id'].toString());
       
       if (result['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -6682,7 +6928,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                               ),
                             ),
                             title: Text(
-                              store['name'] ?? 'Unknown Store',
+                              store['name'] ?? store['storeName'] ?? 'Unknown Store',
                               style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
                             ),
                             subtitle: Column(
@@ -6834,15 +7080,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     // Generate real-time alerts based on store performance
     List<Map<String, dynamic>> alerts = [];
     
-    final storeProvider = Provider.of<StoreProvider>(context, listen: false);
-    for (var store in storeProvider.allStores) {
-      final performance = (store['performance'] as num?)?.toDouble() ?? 0.0;
-      final revenue = (store['revenue'] as num?)?.toDouble() ?? 0.0;
+    try {
+      final storeProvider = Provider.of<StoreProvider>(context, listen: false);
+      for (var store in storeProvider.allStores) {
+        // Safe null checks for all store data
+        
+        final performance = (store['performance'] as num?)?.toDouble() ?? 0.0;
+        final revenue = (store['revenue'] as num?)?.toDouble() ?? 0.0;
+        final storeName = (store['name'] as String?)?.isNotEmpty == true ? store['name'] as String : 
+                         (store['storeName'] as String?)?.isNotEmpty == true ? store['storeName'] as String : 'Unknown Store';
       
       // Performance alerts
       if (performance < 0.6) {
         alerts.add({
-          'store': store['name'],
+          'store': storeName,
           'message': 'Low performance detected',
           'type': 'warning',
           'icon': Icons.warning_rounded,
@@ -6853,7 +7104,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       // Revenue alerts
       if (revenue < 20000) {
         alerts.add({
-          'store': store['name'],
+          'store': storeName,
           'message': 'Revenue below threshold',
           'type': 'alert',
           'icon': Icons.attach_money_rounded,
@@ -6864,7 +7115,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       // High performance alerts
       if (performance > 0.9) {
         alerts.add({
-          'store': store['name'],
+          'store': storeName,
           'message': 'Excellent performance!',
           'type': 'success',
           'icon': Icons.emoji_events_rounded,
@@ -6962,6 +7213,37 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ),
       )).toList(),
     );
+    } catch (e) {
+      // Return safe fallback if any error occurs
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withOpacity(0.3)),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                color: Colors.red,
+                size: 32,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Store analytics temporarily unavailable',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
    }
    
    Widget _buildRealTimeStoreItem(Map<String, dynamic> store) {
@@ -7328,12 +7610,1189 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       ),
     );
   }
+
+  Widget _buildWishlistAnalyticsContent() {
+    // Only create future if we don't have one or if we need to refresh
+    if (_wishlistAnalyticsFuture == null && !_hasApiError) {
+      _wishlistAnalyticsFuture = _fetchWishlistAnalytics();
+    }
+
+    return FutureBuilder<List<dynamic>>(
+      future: _wishlistAnalyticsFuture,
+      builder: (context, snapshot) {
+        // Show loading only when waiting and no cached data
+        if (snapshot.connectionState == ConnectionState.waiting && _cachedWishlistData == null) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('Loading wishlist analytics...', 
+                     style: TextStyle(color: Colors.grey[600])),
+              ],
+            ),
+          );
+        }
+        
+        // Use real data from backend or show empty state
+        List<dynamic> wishlists = _cachedWishlistData ?? [];
+        
+        // If no data and not loading, show empty state
+        if (wishlists.isEmpty && snapshot.connectionState != ConnectionState.waiting) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.favorite_outline, size: 80, color: Colors.grey[400]),
+                const SizedBox(height: 16),
+                Text(
+                  'No Wishlist Data Found',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Users haven\'t added any products to their wishlists yet.',
+                  style: TextStyle(color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+        
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Summary Cards
+              _buildWishlistSummaryCards(wishlists),
+              const SizedBox(height: 24),
+              
+              // Popular Products
+              _buildPopularProductsSection(),
+              const SizedBox(height: 24),
+              
+              // User Wishlists
+              _buildUserWishlistsSection(wishlists),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+
+
+  Widget _buildWishlistSummaryCards(List<dynamic> wishlists) {
+    final totalWishlists = wishlists.length;
+    final totalItems = wishlists.fold<int>(0, (sum, wishlist) {
+      try {
+        final items = wishlist['items'];
+        if (items is List) {
+          return sum + items.length;
+        }
+        return sum;
+      } catch (e) {
+        print('Error processing wishlist items: $e');
+        return sum;
+      }
+    });
+    final uniqueProducts = <String>{};
+    for (var wishlist in wishlists) {
+      try {
+        final items = wishlist['items'];
+        if (items is List) {
+          for (var item in items) {
+            if (item is Map && item.containsKey('productId')) {
+              uniqueProducts.add(item['productId'].toString());
+            }
+          }
+        }
+      } catch (e) {
+        print('Error processing wishlist products: $e');
+      }
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSummaryCard(
+            'Total Wishlists',
+            totalWishlists.toString(),
+            Icons.favorite_rounded,
+            const Color(0xFFFFB6C1), // Your beautiful pink palette color
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildSummaryCard(
+            'Total Items',
+            totalItems.toString(),
+            Icons.inventory_2_rounded,
+            const Color(0xFFB5C7F7), // Your beautiful blue palette color
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildSummaryCard(
+            'Unique Products',
+            uniqueProducts.length.toString(),
+            Icons.category_rounded,
+            const Color(0xFFD6EAF8), // Your beautiful light blue palette color
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF22223B),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopularProductsSection() {
+    // Only create future if we don't have one or if we need to refresh
+    if (_popularProductsFuture == null && !_hasApiError) {
+      _popularProductsFuture = _fetchPopularProducts();
+    }
+
+    return FutureBuilder<List<dynamic>>(
+      future: _popularProductsFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSkeletonText(150, 16),
+              const SizedBox(height: 12),
+              ...List.generate(3, (index) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildSkeletonListItem(),
+              )),
+            ],
+          );
+        }
+        if (snapshot.hasError) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.orange[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber, color: Colors.orange[600]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Showing sample popular products',
+                    style: TextStyle(color: Colors.orange[800]),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        final products = snapshot.data ?? [];
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Most Wishlisted Products',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF22223B),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (products.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB6C1).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(Icons.favorite_outline, size: 30, color: const Color(0xFFFFB6C1)),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No popular products yet',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF22223B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Products will appear here when users add them to wishlists',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...products.take(5).map((product) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GestureDetector(
+                onTap: () => _showProductWishlistDetails(product),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFB6C1).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.favorite_rounded,
+                        color: Color(0xFFFFB6C1),
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product['productName'] ?? product['productId'] ?? 'Unknown Product',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: const Color(0xFF22223B),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${product['totalUsers'] ?? product['count'] ?? 0} users wishlisted',
+                            style: GoogleFonts.poppins(
+                              color: Colors.grey[600],
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE91E63),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${product['totalUsers'] ?? product['count'] ?? 0}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                ),
+              ),
+            )).toList(),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildUserWishlistsSection(List<dynamic> wishlists) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'User Wishlists',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF22223B),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...wishlists.take(10).map((wishlist) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD6EAF8).withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Color(0xFF5DADE2),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      FutureBuilder<String>(
+                        future: _getUserDisplayName(wishlist['userId']),
+                        builder: (context, snapshot) {
+                          return Text(
+                            snapshot.data ?? 'User ${wishlist['userId']}',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                              color: const Color(0xFF22223B),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${wishlist['items'] is List ? (wishlist['items'] as List).length : 0} items in wishlist',
+                        style: GoogleFonts.poppins(
+                          color: Colors.grey[600],
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB6C1).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: IconButton(
+                    onPressed: () => _showUserWishlistDetails(wishlist),
+                    icon: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Color(0xFFE91E63),
+                      size: 16,
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        )).toList(),
+      ],
+    );
+  }
+
+  Future<List<dynamic>> _fetchWishlistAnalytics() async {
+    // Check cache first
+    if (_cachedWishlistData != null && 
+        _lastFetchTime != null && 
+        DateTime.now().difference(_lastFetchTime!) < _cacheExpiry) {
+      print('Using cached wishlist data');
+      return _cachedWishlistData!;
+    }
+
+    try {
+      print('Fetching fresh wishlist data from backend...');
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/wishlist/admin/all'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(Duration(seconds: 5)); // Increased timeout for better reliability
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as List<dynamic>;
+        // Cache the data and reset error state
+        _cachedWishlistData = data;
+        _lastFetchTime = DateTime.now();
+        _hasApiError = false;
+        return data;
+      } else {
+        throw Exception('Failed to fetch wishlist analytics');
+      }
+    } catch (e) {
+      print('Error fetching wishlist analytics: $e');
+      _hasApiError = true; // Set error state to prevent further calls
+      
+      // Return cached data if available, otherwise sample data
+      if (_cachedWishlistData != null) {
+        print('Using cached data due to error');
+        return _cachedWishlistData!;
+      }
+      
+      // Return sample data if API fails and no cache
+      final sampleData = [
+        {
+          "userId": "11",
+          "wishlistId": "sample-1",
+          "totalItems": 2,
+          "totalValue": 45.99,
+          "items": [
+            {"productId": "bamboo-water-bottle", "createdAt": "2025-09-13T10:00:00"},
+            {"productId": "eco-bag", "createdAt": "2025-09-13T11:00:00"}
+          ]
+        },
+        {
+          "userId": "12", 
+          "wishlistId": "sample-2",
+          "totalItems": 1,
+          "totalValue": 25.99,
+          "items": [
+            {"productId": "solar-charger", "createdAt": "2025-09-13T12:00:00"}
+          ]
+        },
+        {
+          "userId": "13",
+          "wishlistId": "sample-3", 
+          "totalItems": 3,
+          "totalValue": 67.50,
+          "items": [
+            {"productId": "bamboo-toothbrush", "createdAt": "2025-09-13T09:00:00"},
+            {"productId": "organic-soap", "createdAt": "2025-09-13T10:30:00"},
+            {"productId": "recycled-notebook", "createdAt": "2025-09-13T11:15:00"}
+          ]
+        }
+      ];
+      _cachedWishlistData = sampleData;
+      _lastFetchTime = DateTime.now();
+      return sampleData;
+    }
+  }
+
+  Future<List<dynamic>> _fetchPopularProducts() async {
+    // Use cached data if available and fresh
+    if (_cachedPopularProducts != null && 
+        _lastFetchTime != null && 
+        DateTime.now().difference(_lastFetchTime!) < _cacheExpiry) {
+      return _cachedPopularProducts!;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/wishlist/admin/popular-products'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(Duration(seconds: 5)); // Increased timeout for better reliability
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as List<dynamic>;
+        _cachedPopularProducts = data;
+        _hasApiError = false; // Reset error state on success
+        return data;
+      } else {
+        throw Exception('Failed to fetch popular products');
+      }
+    } catch (e) {
+      print('Error fetching popular products: $e');
+      _hasApiError = true; // Set error state to prevent further calls
+      
+      // Return cached data if available
+      if (_cachedPopularProducts != null) {
+        return _cachedPopularProducts!;
+      }
+      
+      // Return empty list if API fails and no cache
+      return [];
+    }
+  }
+
+  // Method to refresh analytics data
+  void _refreshWishlistAnalytics() {
+    print('🔄 Refreshing wishlist analytics data...');
+    setState(() {
+      _wishlistAnalyticsFuture = null;
+      _popularProductsFuture = null;
+      _hasApiError = false;
+      _lastFetchTime = null; // Force fresh data
+      _cachedWishlistData = null; // Clear cache
+      _cachedPopularProducts = null;
+      _userCache.clear(); // Clear user cache
+    });
+  }
+
+  // Fetch user details and cache them
+  Future<String> _getUserDisplayName(dynamic userId) async {
+    // Convert userId to int if it's a string
+    int userIdInt;
+    if (userId is String) {
+      userIdInt = int.tryParse(userId) ?? 0;
+    } else if (userId is int) {
+      userIdInt = userId;
+    } else {
+      return 'Unknown User';
+    }
+    
+    if (_userCache.containsKey(userIdInt)) {
+      final user = _userCache[userIdInt]!;
+      return user['email'] ?? 'User $userIdInt';
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/users'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final users = data['users'] as List<dynamic>;
+        
+        // Cache all users
+        for (final user in users) {
+          _userCache[user['id']] = user;
+        }
+
+        // Return the specific user
+        if (_userCache.containsKey(userIdInt)) {
+          final user = _userCache[userIdInt]!;
+          return user['email'] ?? 'User $userIdInt';
+        }
+      }
+    } catch (e) {
+      print('Error fetching user details: $e');
+    }
+
+    return 'User $userIdInt';
+  }
+
+  void _showProductWishlistDetails(Map<String, dynamic> product) async {
+    try {
+      // Use the existing all wishlists endpoint and filter for this product
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/wishlist/admin/all'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(Duration(seconds: 5));
+
+      List<Map<String, dynamic>> usersWithProduct = [];
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // API returns a List directly, not an object with 'wishlists' property
+        final allWishlists = data is List ? data : [];
+        
+        // Filter wishlists that contain this specific product
+        for (var wishlist in allWishlists) {
+          try {
+            final items = wishlist['items'];
+            if (items is List) {
+              for (var item in items) {
+                if (item is Map && item['productId'] == product['productId']) {
+                  usersWithProduct.add({
+                    'userId': wishlist['userId']?.toString() ?? 'Unknown',
+                    'createdAt': item['addedAt'] ?? item['createdAt'] ?? 'Unknown',
+                    'wishlistId': wishlist['wishlistId']?.toString() ?? 'Unknown',
+                    'productName': item['productName']?.toString() ?? product['productName']?.toString() ?? 'Unknown Product',
+                  });
+                  break; // Found the product in this wishlist, move to next wishlist
+                }
+              }
+            }
+          } catch (e) {
+            print('Error processing wishlist item: $e');
+            // Continue to next wishlist instead of crashing
+            continue;
+          }
+        }
+      } else {
+        print('Failed to fetch wishlists: ${response.statusCode}');
+      }
+
+      // Show dialog with users who wishlisted this product
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            '${product['productName'] ?? product['productId']} - Wishlisted By',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          content: Container(
+            width: 350,
+            height: 400,
+            child: usersWithProduct.isEmpty
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.people_outline, size: 60, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No Users Found',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        'This product hasn\'t been wishlisted by any users yet.',
+                        style: TextStyle(color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  )
+                : SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Text(
+                          '${usersWithProduct.length} users have wishlisted this product',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ...usersWithProduct.map((userWishlist) => Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFFE91E63).withOpacity(0.1),
+                              child: const Icon(Icons.person, color: Color(0xFFE91E63)),
+                            ),
+                            title: FutureBuilder<String>(
+                              future: _getUserDisplayName(userWishlist['userId']),
+                              builder: (context, snapshot) {
+                                return Text(
+                                  snapshot.data ?? 'User ${userWishlist['userId']}',
+                                  style: const TextStyle(fontWeight: FontWeight.w500),
+                                );
+                              },
+                            ),
+                            subtitle: Text(
+                              'Added on ${_formatDate(userWishlist['createdAt'])}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: const Icon(Icons.favorite, color: Color(0xFFE91E63), size: 20),
+                          ),
+                        )).toList(),
+                      ],
+                    ),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      print('Error fetching product wishlists: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading wishlist details: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _formatDate(String? dateString) {
+    if (dateString == null) return 'Unknown date';
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return 'Invalid date';
+    }
+  }
+
+  void _showUserWishlistDetails(Map<String, dynamic> wishlist) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: const BoxDecoration(
+          color: Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x1A000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE3F2FD),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Color(0xFF1976D2),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FutureBuilder<String>(
+                          future: _getUserDisplayName(wishlist['userId']),
+                          builder: (context, snapshot) {
+                            return Text(
+                              '${snapshot.data ?? 'User ${wishlist['userId']}'} Wishlist',
+                              style: GoogleFonts.poppins(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF22223B),
+                              ),
+                            );
+                          },
+                        ),
+                        Text(
+                          '${(wishlist['items'] as List).length} products in wishlist',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Color(0xFF6C757D),
+                      size: 24,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Products List
+            Expanded(
+              child: (wishlist['items'] as List).isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF3E5F5),
+                              borderRadius: BorderRadius.circular(40),
+                            ),
+                            child: const Icon(
+                              Icons.favorite_border_rounded,
+                              color: Color(0xFFE91E63),
+                              size: 40,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No Products Yet',
+                            style: GoogleFonts.poppins(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF22223B),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'This user hasn\'t added any products to their wishlist',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: (wishlist['items'] as List).length,
+                      itemBuilder: (context, index) {
+                        final item = (wishlist['items'] as List)[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF3E5F5),
+                                  borderRadius: BorderRadius.circular(28),
+                                ),
+                                child: const Icon(
+                                  Icons.favorite_rounded,
+                                  color: Color(0xFFE91E63),
+                                  size: 28,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['productId']?.toString() ?? 'Unknown Product',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF22223B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFE3F2FD),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.access_time_rounded,
+                                                color: Color(0xFF1976D2),
+                                                size: 12,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Added: ${_formatDate(item['createdAt'])}',
+                                                style: GoogleFonts.poppins(
+                                                  fontSize: 12,
+                                                  color: const Color(0xFF1976D2),
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0F8FF),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Color(0xFF5DADE2),
+                                  size: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeletons() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Summary Cards Skeleton
+          Row(
+            children: [
+              Expanded(child: _buildSkeletonCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _buildSkeletonCard()),
+              const SizedBox(width: 12),
+              Expanded(child: _buildSkeletonCard()),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Popular Products Skeleton
+          _buildSkeletonText(120, 16),
+          const SizedBox(height: 12),
+          ...List.generate(3, (index) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildSkeletonListItem(),
+          )),
+          const SizedBox(height: 24),
+          
+          // User Wishlists Skeleton
+          _buildSkeletonText(100, 16),
+          const SizedBox(height: 12),
+          ...List.generate(5, (index) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildSkeletonListItem(),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: 40,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: 60,
+            height: 12,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonText(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(4),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonListItem() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: double.infinity,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: 120,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // Product Management Helper Methods
 
 // Helper method to parse color string to Color object
-Color _parseColor(String? colorString) {
+Color _parseColor(dynamic colorValue) {
+  // Handle if it's already a Color object
+  if (colorValue is Color) {
+    return colorValue;
+  }
+  
+  // Handle string values
+  String? colorString = colorValue?.toString();
   if (colorString == null || colorString.isEmpty) {
     return const Color(0xFFB5C7F7); // Default color
   }
@@ -7357,7 +8816,14 @@ Color _parseColor(String? colorString) {
 }
 
   // Helper method to get icon from string
-  IconData _getIconFromString(String? iconString) {
+  IconData _getIconFromString(dynamic iconValue) {
+    // Handle if it's already an IconData object
+    if (iconValue is IconData) {
+      return iconValue;
+    }
+    
+    // Handle string values
+    String? iconString = iconValue?.toString();
     if (iconString == null || iconString.isEmpty) {
       return Icons.shopping_bag_rounded; // Default icon
     }
@@ -7467,7 +8933,7 @@ Widget _buildAdminProductList(BuildContext context) {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    _getIconFromString(product['icon']?.toString() ?? ''),
+                    _getIconFromString(product['icon']),
                     color: _parseColor(product['color']),
                     size: 30,
                   ),
@@ -7807,19 +9273,28 @@ Widget _buildCategoryManagement() {
 }
 
 Widget _buildAddProductForm() {
-  final nameController = TextEditingController();
-  final priceController = TextEditingController();
-  final quantityController = TextEditingController();
-  final descriptionController = TextEditingController();
-  
-  String selectedStore = 'admin'; // Admin's store
+  // State variables - these will persist across rebuilds
+  String? selectedStore;
+  String? selectedCategory;
+  String? selectedMaterial;
+  Color? selectedColor;
+  IconData? selectedIcon;
   
   return StatefulBuilder(
     builder: (context, setState) {
-      String selectedCategory = Provider.of<ProductProvider>(context, listen: false).availableCategories.first;
-      String selectedMaterial = Provider.of<ProductProvider>(context, listen: false).availableMaterials.first;
-      Color selectedColor = Provider.of<ProductProvider>(context, listen: false).availableColors.first;
-      IconData selectedIcon = Provider.of<ProductProvider>(context, listen: false).availableIcons.first;
+      // Initialize controllers
+      final nameController = TextEditingController();
+      final priceController = TextEditingController();
+      final quantityController = TextEditingController();
+      final descriptionController = TextEditingController();
+      
+      // Initialize selections only once
+      selectedStore ??= 'admin';
+      selectedCategory ??= Provider.of<ProductProvider>(context, listen: false).availableCategories.first;
+      selectedMaterial ??= Provider.of<ProductProvider>(context, listen: false).availableMaterials.first;
+      selectedColor ??= Provider.of<ProductProvider>(context, listen: false).availableColors.first;
+      selectedIcon ??= Provider.of<ProductProvider>(context, listen: false).availableIcons.first;
+      
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -7849,7 +9324,7 @@ Widget _buildAddProductForm() {
           
           const SizedBox(height: 20),
           
-          // Category Selection
+          // Category
           Text(
             'Category *',
             style: GoogleFonts.poppins(
@@ -7867,15 +9342,10 @@ Widget _buildAddProductForm() {
               color: Colors.white,
             ),
             child: DropdownButtonFormField<String>(
-              initialValue: selectedCategory,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-              ),
+              value: selectedCategory,
+              decoration: const InputDecoration(border: InputBorder.none),
               items: Provider.of<ProductProvider>(context, listen: false).availableCategories.map((category) {
-                return DropdownMenuItem(
-                  value: category,
-                  child: Text(category),
-                );
+                return DropdownMenuItem(value: category, child: Text(category));
               }).toList(),
               onChanged: (value) {
                 setState(() {
@@ -7952,7 +9422,7 @@ Widget _buildAddProductForm() {
           
           const SizedBox(height: 20),
           
-          // Material Selection
+          // Material
           Text(
             'Material *',
             style: GoogleFonts.poppins(
@@ -7970,15 +9440,10 @@ Widget _buildAddProductForm() {
               color: Colors.white,
             ),
             child: DropdownButtonFormField<String>(
-              initialValue: selectedMaterial,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-              ),
+              value: selectedMaterial,
+              decoration: const InputDecoration(border: InputBorder.none),
               items: Provider.of<ProductProvider>(context, listen: false).availableMaterials.map((material) {
-                return DropdownMenuItem(
-                  value: material,
-                  child: Text(material),
-                );
+                return DropdownMenuItem(value: material, child: Text(material));
               }).toList(),
               onChanged: (value) {
                 setState(() {
@@ -8015,92 +9480,101 @@ Widget _buildAddProductForm() {
           
           const SizedBox(height: 20),
           
-          // Color and Icon Selection
-          Text(
-            'Product Appearance',
-            style: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF22223B),
-            ),
-          ),
-          const SizedBox(height: 12),
-          
-          // Color Selection
-          Text(
-            'Choose Color:',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF22223B),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            children: Provider.of<ProductProvider>(context, listen: false).availableColors.map((color) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    selectedColor = color;
-                  });
-                },
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selectedColor == color ? Colors.black : Colors.transparent,
-                      width: 3,
+          // Product Appearance
+          StatefulBuilder(
+            builder: (BuildContext context, StateSetter setAppearanceState) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Product Appearance',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF22223B),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
-          
-          const SizedBox(height: 16),
-          
-          // Icon Selection
-          Text(
-            'Choose Icon:',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF22223B),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 12,
-            children: Provider.of<ProductProvider>(context, listen: false).availableIcons.map((icon) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    selectedIcon = icon;
-                  });
-                },
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: selectedIcon == icon ? selectedColor.withOpacity(0.2) : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: selectedIcon == icon ? selectedColor : Colors.transparent,
-                      width: 2,
+                  const SizedBox(height: 12),
+                  
+                  // Color Selection
+                  Text(
+                    'Choose Color:',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF22223B),
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    color: selectedIcon == icon ? selectedColor : Colors.grey,
-                    size: 24,
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    children: Provider.of<ProductProvider>(context, listen: false).availableColors.map((color) {
+                      return GestureDetector(
+                        onTap: () {
+                          setAppearanceState(() {
+                            selectedColor = color;
+                          });
+                        },
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selectedColor == color ? Colors.black : Colors.transparent,
+                              width: 3,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
-                ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Icon Selection
+                  Text(
+                    'Choose Icon:',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF22223B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    children: Provider.of<ProductProvider>(context, listen: false).availableIcons.map((icon) {
+                      return GestureDetector(
+                        onTap: () {
+                          setAppearanceState(() {
+                            selectedIcon = icon;
+                          });
+                        },
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: selectedIcon == icon ? (selectedColor?.withOpacity(0.2) ?? Colors.blue.withOpacity(0.2)) : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: selectedIcon == icon ? (selectedColor ?? Colors.blue) : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: selectedIcon == icon ? (selectedColor ?? Colors.blue) : Colors.grey,
+                            size: 24,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
               );
-            }).toList(),
+            },
           ),
           
           const SizedBox(height: 30),
@@ -8115,9 +9589,8 @@ Widget _buildAddProductForm() {
                     quantityController.text.isNotEmpty &&
                     descriptionController.text.isNotEmpty) {
                   
-                  // Convert Color to hex string and IconData to string
-                  String colorHex = '#${selectedColor.value.toRadixString(16).padLeft(8, '0')}';
-                  String iconString = _getIconString(selectedIcon);
+                  String colorHex = '#${selectedColor!.value.toRadixString(16).padLeft(8, '0')}';
+                  String iconString = _getIconString(selectedIcon!);
                   
                   final newProduct = {
                     'name': nameController.text,
@@ -8132,7 +9605,6 @@ Widget _buildAddProductForm() {
                     'storeName': 'Admin Store',
                   };
                   
-                  // Show loading indicator
                   showDialog(
                     context: context,
                     barrierDismissible: false,
@@ -8147,12 +9619,10 @@ Widget _buildAddProductForm() {
 
                   try {
                     final result = await Provider.of<ProductProvider>(context, listen: false).addProduct(newProduct);
-                    
-                    // Hide loading indicator
                     Navigator.pop(context);
                     
                     if (result['success']) {
-                      Navigator.pop(context); // Close the add product dialog
+                      Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -8174,9 +9644,7 @@ Widget _buildAddProductForm() {
                       );
                     }
                   } catch (e) {
-                    // Hide loading indicator
                     Navigator.pop(context);
-                    
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
@@ -8291,8 +9759,22 @@ void _showEditProductAdmin(BuildContext context, Map<String, dynamic> product) {
   String selectedCategory = product['category'] ?? 'Clothing';
   String selectedMaterial = product['material'] ?? 'Organic Cotton';
   Color selectedColor = _parseColor(product['color']);
-  IconData selectedIcon = _getIconFromString(product['icon']?.toString() ?? '');
-  String selectedStore = product['storeId'] ?? '1';
+  IconData selectedIcon = _getIconFromString(product['icon']);
+  
+  // Find store name from store ID
+  String selectedStore = product['storeName'] ?? 'Unknown Store';
+  final storeProvider = Provider.of<StoreProvider>(context, listen: false);
+  if (product['storeId'] != null) {
+    try {
+      final store = storeProvider.allStores.firstWhere(
+        (s) => s['id'] == product['storeId'] || s['storeId'] == product['storeId'],
+        orElse: () => {'name': product['storeName'] ?? 'Unknown Store'},
+      );
+      selectedStore = store['name'] ?? product['storeName'] ?? 'Unknown Store';
+    } catch (e) {
+      selectedStore = product['storeName'] ?? 'Unknown Store';
+    }
+  }
 
   showModalBottomSheet(
     context: context,
@@ -8377,6 +9859,13 @@ Widget _buildEditProductForm(
 ) {
   return StatefulBuilder(
     builder: (context, setState) {
+      List<String> availableCategories = ['Clothing', 'Accessories', 'Electronics', 'Personal Care', 'Beauty & Personal Care', 'Home & Garden', 'Home & Living', 'Food & Beverages', 'Fashion', 'Office & Stationery'];
+      
+      // Validate selectedCategory - ensure it exists in availableCategories
+      if (!availableCategories.contains(selectedCategory)) {
+        selectedCategory = 'Clothing'; // Fallback to default if category doesn't exist
+      }
+      
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -8422,7 +9911,7 @@ Widget _buildEditProductForm(
               filled: true,
               fillColor: Colors.white,
             ),
-            items: ['Clothing', 'Accessories', 'Electronics', 'Personal Care', 'Home & Garden', 'Food & Beverages']
+            items: availableCategories
                 .map((category) => DropdownMenuItem(
                       value: category,
                       child: Text(category, style: GoogleFonts.poppins()),
@@ -8581,8 +10070,14 @@ Widget _buildEditProductForm(
           Consumer<StoreProvider>(
             builder: (context, storeProvider, child) {
               List<String> storeNames = storeProvider.allStores.map((store) => store['name'] as String).toList();
+              
+              // Ensure selectedStore is in the list, otherwise use the first available store
+              if (!storeNames.contains(selectedStore) && storeNames.isNotEmpty) {
+                selectedStore = storeNames.first;
+              }
+              
               return DropdownButtonFormField<String>(
-                initialValue: selectedStore,
+                value: storeNames.contains(selectedStore) ? selectedStore : (storeNames.isNotEmpty ? storeNames.first : null),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -8695,6 +10190,18 @@ Widget _buildEditProductForm(
                   String colorHex = '#${selectedColor.value.toRadixString(16).padLeft(8, '0')}';
                   String iconString = _getIconString(selectedIcon);
                   
+                  // Find store ID from store name
+                  String storeId = product['storeId'] ?? '1';
+                  try {
+                    final store = Provider.of<StoreProvider>(context, listen: false).allStores.firstWhere(
+                      (s) => s['name'] == selectedStore,
+                      orElse: () => {'id': product['storeId'] ?? '1', 'storeId': product['storeId'] ?? '1'},
+                    );
+                    storeId = store['id'] ?? store['storeId'] ?? product['storeId'] ?? '1';
+                  } catch (e) {
+                    storeId = product['storeId'] ?? '1';
+                  }
+                  
                   final updatedProduct = {
                     'name': nameController.text,
                     'category': selectedCategory,
@@ -8704,8 +10211,8 @@ Widget _buildEditProductForm(
                     'description': descriptionController.text,
                     'color': colorHex,
                     'icon': iconString,
-                    'storeId': selectedStore,
-                    'storeName': 'Admin Store',
+                    'storeId': storeId,
+                    'storeName': selectedStore,
                   };
                   
                   // Show loading indicator
@@ -8722,7 +10229,7 @@ Widget _buildEditProductForm(
                   );
 
                   try {
-                    final result = await Provider.of<ProductProvider>(context, listen: false).updateProduct(product['id'], updatedProduct);
+                    final result = await Provider.of<ProductProvider>(context, listen: false).updateProduct(product['id'].toString(), updatedProduct);
                     
                     // Hide loading indicator
                     Navigator.pop(context);
@@ -8820,7 +10327,7 @@ void _showDeleteProductDialogAdmin(BuildContext context, Map<String, dynamic> pr
         ElevatedButton(
           onPressed: () async {
             try {
-              final result = await Provider.of<ProductProvider>(context, listen: false).deleteProduct(product['id']);
+              final result = await Provider.of<ProductProvider>(context, listen: false).deleteProduct(product['id'].toString());
               
               Navigator.pop(context); // Close dialog
               
@@ -9101,7 +10608,7 @@ class _PastelActionCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Icon(
-                                  _getIconFromString(product['icon']?.toString() ?? ''),
+                                  _getIconFromString(product['icon']),
                                   color: _getProductColor(product['color']),
                                   size: 24,
                                 ),

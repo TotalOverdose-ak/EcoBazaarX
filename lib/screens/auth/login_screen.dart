@@ -587,13 +587,14 @@ class _LoginScreenState extends State<LoginScreen>
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
                           children: [
                             Text(
                               "Don't have an account? ",
                               style: GoogleFonts.poppins(
                                 color: const Color(0xFF22223B).withOpacity(0.7),
+                                fontSize: 14,
                               ),
                             ),
                             GestureDetector(
@@ -608,6 +609,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 style: GoogleFonts.poppins(
                                   color: const Color.fromARGB(133, 0, 0, 0),
                                   fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                   decoration: TextDecoration.underline,
                                 ),
                               ),
