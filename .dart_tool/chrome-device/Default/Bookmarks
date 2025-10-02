@@ -1,0 +1,482 @@
+{
+   "checksum": "5d13dfcb501e9fe356e5ea2161c6c336",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13383064697654115",
+            "date_last_used": "0",
+            "guid": "4222b02f-fca4-487f-b1b9-e82dbba2b989",
+            "id": "11",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "Adobe Scan 21-Jan-2025 - Adobe cloud storage",
+            "type": "url",
+            "url": "javascript:(function () {    const removeLearboard = document.querySelector('.js-lab-leaderboard');    const showScore = document.querySelector('.games-labs');    removeLearboard.remove();    showScore.className = \"lab-show l-full no-nav application-new lab-show l-full no-nav \"})();"
+         }, {
+            "date_added": "13302867785884058",
+            "date_last_used": "0",
+            "guid": "c9076690-e890-4a07-bcbd-d3250ed176be",
+            "id": "12",
+            "name": "FileHorse.com / Free Software Download for Windows",
+            "type": "url",
+            "url": "https://www.filehorse.com/"
+         }, {
+            "date_added": "13139697452000000",
+            "date_last_used": "0",
+            "guid": "83e936cc-509a-4c8a-b101-4372eec150dc",
+            "id": "13",
+            "name": "The NeoSmart Files",
+            "type": "url",
+            "url": "http://neosmart.net/blog/feed/"
+         }, {
+            "date_added": "13309605710401455",
+            "date_last_used": "0",
+            "guid": "857ac654-363b-42bb-89ea-0088b77ddd9c",
+            "id": "14",
+            "name": "IObit Surfing Protection - Chrome Web Store",
+            "type": "url",
+            "url": "https://chrome.google.com/webstore/detail/iobit-surfing-protection/imgpenhngnbnmhdkpdfnfhdpmfgmihdn/related"
+         }, {
+            "date_added": "13310156774648604",
+            "date_last_used": "0",
+            "guid": "058d0318-b269-4a05-a276-accc462ad402",
+            "id": "15",
+            "name": "New tab",
+            "type": "url",
+            "url": "edge://newtab/"
+         }, {
+            "date_added": "13310710129036284",
+            "date_last_used": "13311667161348285",
+            "guid": "771d31cb-b58f-4df1-b26a-c5af9aeef2a8",
+            "id": "16",
+            "name": "..:: State Common Entrance Test Cell, Government of Maharashtra ::..",
+            "type": "url",
+            "url": "https://fe2022.mahacet.org/StaticPages/frmCheckAllotmentStatusCAPRound1?did=1250"
+         }, {
+            "date_added": "13309684353245447",
+            "date_last_used": "13309684565299364",
+            "guid": "9b56678a-1e24-4ce4-a764-def3f274fb41",
+            "id": "17",
+            "name": "XEROX WORKCENTRE - Scan",
+            "type": "url",
+            "url": "http://192.168.100.19/scan/index.php"
+         }, {
+            "date_added": "13171785286620449",
+            "date_last_used": "13334525419352523",
+            "guid": "802738be-7c14-4df9-bf7e-1fb3b1b5538a",
+            "id": "18",
+            "name": "aaplesarkar.mahaonline.gov.in",
+            "type": "url",
+            "url": "https://aaplesarkar.mahaonline.gov.in/en"
+         }, {
+            "date_added": "13222610312456363",
+            "date_last_used": "0",
+            "guid": "1c7b9268-e072-4137-a95c-25bc4ad2dc60",
+            "id": "19",
+            "name": "CBSE Online – CBSE Sample Papers – completely FREE PDFs",
+            "type": "url",
+            "url": "https://www.cbse.online/"
+         }, {
+            "date_added": "13171435691817413",
+            "date_last_used": "13334525415514591",
+            "guid": "6379791e-89df-4b33-b7f7-06b7dfe26174",
+            "id": "20",
+            "name": "EPFO: Home",
+            "type": "url",
+            "url": "https://unifiedportal-emp.epfindia.gov.in/epfo/"
+         }, {
+            "date_added": "13164356519645840",
+            "date_last_used": "13401463655812169",
+            "guid": "575a42c6-84a2-4d93-964d-4d2e3d3261c6",
+            "id": "21",
+            "name": "Goods & Service Tax (GST) | Login",
+            "type": "url",
+            "url": "https://services.gst.gov.in/services/login"
+         }, {
+            "date_added": "13215247915044117",
+            "date_last_used": "0",
+            "guid": "5fc265b0-97c8-469f-9765-515f61a23434",
+            "id": "22",
+            "name": "GRAS-Government Receipt Accounting System",
+            "type": "url",
+            "url": "https://gras.mahakosh.gov.in/echallan/"
+         }, {
+            "date_added": "13204008723822193",
+            "date_last_used": "0",
+            "guid": "f29d9d11-737d-4e40-97ac-23fefaee125a",
+            "id": "23",
+            "name": "Jio Phone Recharge - Exclusive 4G Recharge Plans",
+            "type": "url",
+            "url": "https://www.jio.com/jiophone-recharge-plans"
+         }, {
+            "date_added": "13297605796691077",
+            "date_last_used": "0",
+            "guid": "5a294866-dad5-4950-994c-d3169a121bee",
+            "id": "24",
+            "name": "https://bhulekh.mahabhumi.gov.in/Nagpur/Home.aspx",
+            "type": "url",
+            "url": "https://bhulekh.mahabhumi.gov.in/Nagpur/Home.aspx"
+         }, {
+            "date_added": "13217603275630562",
+            "date_last_used": "0",
+            "guid": "f7c38c6d-e835-4a9a-8a69-d38f2404aee8",
+            "id": "25",
+            "name": "Maharashtra State Electricity Distribution Co. Ltd.",
+            "type": "url",
+            "url": "http://web-srv.rapdrp.mahadiscom.in/siteminderagent/forms/login.fcc?TYPE=33554433&REALMOID=06-cb26d872-08cf-4160-b15a-08e76fab5d83&GUID=&SMAUTHREASON=0&METHOD=GET&SMAGENTNAME=-SM-WrdEnygNhmf61Nt4AEO1tlAqqbws2PV8TYsMwDsw%2bwtAaA482z5GNT3eQ3ppLk8k&TARGET=-SM-HTTP%3a%2f%2fweb--srv%2erapdrp%2emahadiscom%2ein%2fncapp%2fnc%3fuiActionName%3dgetNewConnectionDetails%26applicationID%3d9918168"
+         }, {
+            "date_added": "13303538768015526",
+            "date_last_used": "0",
+            "guid": "c525f916-60eb-431b-9d8c-4045b5a245d5",
+            "id": "26",
+            "name": "eProcurement System Government of Maharashtra",
+            "type": "url",
+            "url": "https://mahatenders.gov.in/nicgep/app"
+         }, {
+            "date_added": "13206675243870460",
+            "date_last_used": "0",
+            "guid": "7045c217-fd61-4d3d-9154-f49e4c470dca",
+            "id": "27",
+            "name": "MSEDCL e-Tendering",
+            "type": "url",
+            "url": "https://etender.mahadiscom.in/eatApp/"
+         }, {
+            "date_added": "13136613050519389",
+            "date_last_used": "0",
+            "guid": "b9ca382d-a3b0-4790-a10d-42cf7715ebac",
+            "id": "28",
+            "name": "MSEDCL Mobile App Web Console",
+            "type": "url",
+            "url": "http://console.mahadiscom.in/MobileAppWebConsole/wbcs"
+         }, {
+            "date_added": "13236674519944234",
+            "date_last_used": "0",
+            "guid": "0bdffd88-1c8f-465f-b8e6-30f435497b69",
+            "id": "29",
+            "name": "My Drive - Google Drive",
+            "type": "url",
+            "url": "https://drive.google.com/drive/u/4/my-drive"
+         }, {
+            "date_added": "13203209356013038",
+            "date_last_used": "0",
+            "guid": "efecf651-fb88-43f5-85c5-6aa55749113f",
+            "id": "30",
+            "name": "Rediffmail",
+            "type": "url",
+            "url": "https://f5mail.rediff.com/ajaxprism/container?angular=1&els=24945badd0a76cc5d846d035d294d574&user_size=1"
+         }, {
+            "date_added": "13143572678938111",
+            "date_last_used": "0",
+            "guid": "c5928588-6925-4b02-a23a-f64babd744fd",
+            "id": "31",
+            "name": "School Education and Sports Department",
+            "type": "url",
+            "url": "https://edustaff.maharashtra.gov.in/transfer/users/login/"
+         }, {
+            "date_added": "13203319629843231",
+            "date_last_used": "0",
+            "guid": "cab6bda7-59fe-4b77-846d-2088e877fbca",
+            "id": "32",
+            "name": "View/Pay Bill",
+            "type": "url",
+            "url": "https://wss.mahadiscom.in/wss/wss?uiActionName=getViewPayBill"
+         }, {
+            "date_added": "13216812383315373",
+            "date_last_used": "0",
+            "guid": "7b967c4b-b9cd-484f-b1b8-2108735ab40a",
+            "id": "33",
+            "name": "web-srv.rapdrp.mahadiscom.in",
+            "type": "url",
+            "url": "http://web-srv.rapdrp.mahadiscom.in/ncapp/nc?uiActionName=getNewConnectionDetails&applicationID=9918168"
+         }, {
+            "date_added": "13204607061484002",
+            "date_last_used": "0",
+            "guid": "84e3519e-378a-4700-a212-42bf4f71e3fe",
+            "id": "34",
+            "name": "WhatsApp",
+            "type": "url",
+            "url": "https://web.whatsapp.com/"
+         }, {
+            "date_added": "13238732137094432",
+            "date_last_used": "0",
+            "guid": "24508718-5a28-4d19-bb82-e7d45a489ac5",
+            "id": "35",
+            "name": "www.income tax department - Google Search",
+            "type": "url",
+            "url": "https://www.google.com/search?q=www.income+tax+department&oq=&aqs=chrome.0.35i39l8.585354j0j7&sourceid=chrome&ie=UTF-8"
+         }, {
+            "date_added": "13277444415814296",
+            "date_last_used": "0",
+            "guid": "3abc9bf8-354e-4f56-b798-f4e17681685e",
+            "id": "36",
+            "name": "MSEDCL WorksPortal",
+            "type": "url",
+            "url": "https://works.mahadiscom.in/WorksPortal/"
+         }, {
+            "date_added": "13277445106438488",
+            "date_last_used": "0",
+            "guid": "d523290b-a30f-421a-a58b-1922bb6abd03",
+            "id": "37",
+            "name": "MSEDCL Mobile App Web Console",
+            "type": "url",
+            "url": "https://console.mahadiscom.in/MobileAppWebConsole/"
+         }, {
+            "date_added": "13277716321281100",
+            "date_last_used": "0",
+            "guid": "cb510510-4314-4622-a38a-005148eb8f6c",
+            "id": "38",
+            "name": "(1) WhatsApp",
+            "type": "url",
+            "url": "https://web.whatsapp.com/"
+         }, {
+            "date_added": "13278059557334807",
+            "date_last_used": "0",
+            "guid": "005fa8fc-a7e5-45a0-b402-7c1830f7c6ba",
+            "id": "39",
+            "name": "Rediffmail",
+            "type": "url",
+            "url": "https://f5mail.rediff.com/ajaxprism/container?angular=1&els=e20ccd4373142febd54f0c9ead8cac91&user_size=1"
+         }, {
+            "date_added": "13278091041478575",
+            "date_last_used": "0",
+            "guid": "b725e168-728e-4c68-816f-6140892dd457",
+            "id": "40",
+            "name": "Inbox (46) - jkeote@gmail.com - Gmail",
+            "type": "url",
+            "url": "https://mail.google.com/mail/u/0/?tab=rm&ogbl#inbox"
+         }, {
+            "date_added": "13278566911475525",
+            "date_last_used": "0",
+            "guid": "482f3ec8-1777-478b-b7a8-e10b1e61e098",
+            "id": "41",
+            "name": "EPFO: Home",
+            "type": "url",
+            "url": "https://unifiedportal-emp.epfindia.gov.in/epfo/;jsessionid=yqey0I7RD9C22apYkI+HGVEU.a6054d86-141d-3fba-9890-b6baaf221ddb"
+         }, {
+            "date_added": "13278569590808714",
+            "date_last_used": "0",
+            "guid": "412abdd1-3628-4101-b376-cb4fbcc78d6d",
+            "id": "42",
+            "name": "MahaPowerPay | Login",
+            "type": "url",
+            "url": "https://occs.mahadiscom.in/mahapowerpay/index"
+         }, {
+            "date_added": "13281721050421695",
+            "date_last_used": "0",
+            "guid": "6a876102-e39c-42b7-98a7-5b741e0ee4dc",
+            "id": "43",
+            "name": "Convert PDF to Word online for free | Adobe Acrobat (India)",
+            "type": "url",
+            "url": "https://www.adobe.com/in/acrobat/online/pdf-to-word.html"
+         }, {
+            "date_added": "13286350799819503",
+            "date_last_used": "0",
+            "guid": "6e1196bb-30c6-45ab-9175-5f332bb58a09",
+            "id": "44",
+            "name": "https://etender.mahadiscom.in/eatApp/tenderPurchase#result-page-1",
+            "type": "url",
+            "url": "https://etender.mahadiscom.in/eatApp/tenderPurchase#result-page-1"
+         }, {
+            "date_added": "13283253561320319",
+            "date_last_used": "0",
+            "guid": "2bdfd7ed-6e90-4ff0-80b2-23da31028f5c",
+            "id": "45",
+            "name": "Industries, Energy and Labour Department",
+            "type": "url",
+            "url": "https://energy.mahaonline.gov.in/Payment/Thanks"
+         }, {
+            "date_added": "13293180560359888",
+            "date_last_used": "0",
+            "guid": "67912120-d786-40bc-a2f2-50e24c040eaa",
+            "id": "46",
+            "name": "Welcome To MSEDCL",
+            "type": "url",
+            "url": "https://works.mahadiscom.in/WorksPortal/erpmp"
+         }, {
+            "date_added": "13295974284115887",
+            "date_last_used": "0",
+            "guid": "affa7941-a376-4b08-bb8e-2ce804b95dd4",
+            "id": "47",
+            "name": "Quick Hack - Beginners Ethical Hacking Course (White Hat)",
+            "type": "url",
+            "url": "https://www.instamojo.com/technicalsagar/quick-hack-beginners-ethical-hacking-course-/"
+         }, {
+            "date_added": "13295974286419877",
+            "date_last_used": "0",
+            "guid": "eac4de35-9cbd-498b-9d93-d7e71d4b5770",
+            "id": "48",
+            "name": "HACKSTARS - Ethical Hacking & Cyber Security Course Part 1",
+            "type": "url",
+            "url": "https://www.instamojo.com/technicalsagar/hackstars-ethical-hacking-cyber-security-cou/"
+         }, {
+            "date_added": "13295974289355856",
+            "date_last_used": "0",
+            "guid": "81e765e7-479c-40cf-b766-5670ece27bb0",
+            "id": "49",
+            "name": "Tech Master Beginners Hacking Course Part-1 (For Limited People)",
+            "type": "url",
+            "url": "https://www.instamojo.com/technicalsagar/tech-master-beginners-hacking-course-part-1-/"
+         }, {
+            "date_added": "13299606322263822",
+            "date_last_used": "0",
+            "guid": "ac4b8b26-105f-412f-bbca-5394d96a8a50",
+            "id": "50",
+            "name": "WindowsKeys.in Get Original Microsoft Windows Activation Keys",
+            "type": "url",
+            "url": "https://windowskeys.in/cart/"
+         }, {
+            "date_added": "13301303294788594",
+            "date_last_used": "0",
+            "guid": "be7bfe5f-1ec7-4377-9739-1f8365443d80",
+            "id": "51",
+            "name": "Adobe Acrobat Documents",
+            "type": "url",
+            "url": "https://acrobat.adobe.com/link/documents/files/?locale=en-US&uri=urn%3Aaaid%3Asc%3AUS%3A6361f727-4d8c-4a52-8ed9-f2695b0ef8ef"
+         }, {
+            "date_added": "13301304874466459",
+            "date_last_used": "0",
+            "guid": "7a163939-ff43-40cb-870a-d4a2c57f6ffb",
+            "id": "52",
+            "name": "Embed Gno | Infosys Springboard",
+            "type": "url",
+            "url": "https://infyspringboard.onwingspan.com/web/mr/page/embed-gno?survey=1836"
+         }, {
+            "date_added": "13314867269273596",
+            "date_last_used": "0",
+            "guid": "2fb3cac9-1a24-4af9-a1aa-2667057ad86e",
+            "id": "53",
+            "name": "Gmail",
+            "type": "url",
+            "url": "https://accounts.google.com/b/0/AddMailService"
+         }, {
+            "date_added": "13314867269274403",
+            "date_last_used": "0",
+            "guid": "c8594696-14c8-4ae7-9f30-1cd906c262c4",
+            "id": "54",
+            "name": "YouTube",
+            "type": "url",
+            "url": "https://youtube.com/"
+         }, {
+            "date_added": "13314867269275090",
+            "date_last_used": "0",
+            "guid": "a4c92d83-1e38-4a92-bcee-8288873fa723",
+            "id": "55",
+            "name": "Maps",
+            "type": "url",
+            "url": "https://maps.google.com/"
+         }, {
+            "date_added": "13319601871371852",
+            "date_last_used": "0",
+            "guid": "6595a0c3-8bae-4a32-a815-a4bd9ab57fd1",
+            "id": "56",
+            "name": "Mobile App Web Console",
+            "type": "url",
+            "url": "https://console.mahadiscom.in/MobileAppWebConsole/wbcs"
+         }, {
+            "date_added": "13351015327820392",
+            "date_last_used": "0",
+            "guid": "ccc2ec2b-c7d6-4ecb-ad65-697d26d2f163",
+            "id": "57",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "8051 Microcontroller Special Function Registers (SFRs)",
+            "type": "url",
+            "url": "https://www.electronicshub.org/8051-microcontroller-special-function-registers/"
+         }, {
+            "date_added": "13352182799758810",
+            "date_last_used": "13352192528482638",
+            "guid": "7a53485e-ed9a-43a8-ac2d-4cac817436a9",
+            "id": "58",
+            "name": "Welcome To MSEDCL",
+            "type": "url",
+            "url": "https://console.mahadiscom.in/MobileAppWebConsole/wbcs"
+         }, {
+            "date_added": "13352802694862629",
+            "date_last_used": "0",
+            "guid": "e1ce6ffd-739f-4c5a-8648-449e2e99c6fd",
+            "id": "59",
+            "name": "chdkdsk - Google Search",
+            "type": "url",
+            "url": "https://www.google.com/search?q=chdkdsk&oq=chdkdsk&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIPCAEQABgKGIMBGLEDGIAEMgwIAhAAGAoYsQMYgAQyDAgDEAAYChixAxiABDIJCAQQABgKGIAEMgkIBRAAGAoYgAQyCQgGEAAYChiABDIJCAcQABgKGIAEMgkICBAAGAoYgAQyCQgJEAAYChiABNIBCDE3MjhqMGo3qAIAsAIA&sourceid=chrome&ie=UTF-8"
+         }, {
+            "date_added": "13401446683366437",
+            "date_last_used": "0",
+            "guid": "04bda519-945e-4f50-b5bf-906733017962",
+            "id": "60",
+            "name": "CSS notes (2).docx - Google Docs",
+            "type": "url",
+            "url": "https://docs.google.com/document/d/1swNN2fsBljcU5Far08obPju4_ymX3AX_/edit"
+         } ],
+         "date_added": "13403731166606163",
+         "date_last_used": "0",
+         "date_modified": "13401446683366437",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13115940359645761",
+            "date_last_used": "0",
+            "guid": "a63ebcab-7c95-443f-9077-eb6ac5ab175c",
+            "id": "9",
+            "name": "...",
+            "type": "url",
+            "url": "chrome://newtab/"
+         }, {
+            "date_added": "13114872629668125",
+            "date_last_used": "0",
+            "guid": "72e69fcd-2e1f-4b63-88e7-aed00942bff6",
+            "id": "10",
+            "name": "New Tab",
+            "type": "url",
+            "url": "https://mail.google.com/mail/ca"
+         } ],
+         "date_added": "13403731166606163",
+         "date_last_used": "0",
+         "date_modified": "13115940359645761",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [ {
+            "date_added": "13112265110772103",
+            "date_last_used": "0",
+            "guid": "3959425e-6186-4bce-abef-f8eaa5e0cd18",
+            "id": "6",
+            "name": "A few quick things about Twitter.",
+            "type": "url",
+            "url": "https://mobile.twitter.com/welcome/intro"
+         }, {
+            "date_added": "13170003163176976",
+            "date_last_used": "0",
+            "guid": "c61acedb-d7a6-4a03-970c-d1d758ed126f",
+            "id": "7",
+            "name": "Indian Railways Reservation Enquiry, PNR Status, Running Status, Running History, Time Table, Train Route, Route Map, Arrival/Departure, Fare, Train Statistics, Fare Chart, Train Composition, Indian Rail (etrain.info)",
+            "type": "url",
+            "url": "https://etrain.info/in?PAGE=runningstatus#!TRAIN_BETWEEN=WR-NRKR"
+         }, {
+            "date_added": "13237789439523565",
+            "date_last_used": "0",
+            "guid": "290e1760-a541-4bf7-86d2-9e77e7b6a528",
+            "id": "8",
+            "name": "Rediffmail NG",
+            "type": "url",
+            "url": "https://f5mobile.rediff.com/ajaxprism/maillist?user_size=1&angular=1&els=d10c975f3731e6df5cea1c8645554cf4#folder/Inbox"
+         } ],
+         "date_added": "13403731166606163",
+         "date_last_used": "0",
+         "date_modified": "13237789439523565",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile bookmarks",
+         "type": "folder"
+      }
+   },
+   "version": 1
+}

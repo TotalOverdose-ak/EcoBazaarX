@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/carbon_footprint_service.dart';
 
 class CarbonPurchase {
   final String orderId;
@@ -268,6 +269,101 @@ class CarbonTrackingProvider with ChangeNotifier {
       case 6: return 'Sat';
       case 7: return 'Sun';
       default: return '';
+    }
+  }
+
+  // Load user's carbon footprint history from backend
+  Future<void> loadUserHistory(String userId) async {
+    try {
+      print('🔄 Loading carbon history from backend for user: $userId');
+      final history = await CarbonFootprintService.getUserHistory(userId);
+      
+      _purchases.clear();
+      for (var record in history) {
+        final purchase = CarbonPurchase(
+          orderId: record['id']?.toString() ?? '',
+          customerId: record['userId']?.toString() ?? userId,
+          customerName: record['productName']?.toString() ?? 'Unknown',
+          totalAmount: 0.0, // Not tracked in carbon footprint
+          totalCarbonSaved: record['carbonSavings']?.toDouble() ?? 0.0,
+          carbonByCategory: {
+            record['category']?.toString() ?? 'General': record['carbonSavings']?.toDouble() ?? 0.0,
+          },
+          items: [],
+          timestamp: record['calculatedAt'] != null 
+              ? DateTime.parse(record['calculatedAt']) 
+              : DateTime.now(),
+        );
+        _purchases.add(purchase);
+      }
+      
+      _updateTotals();
+      notifyListeners();
+      print('✅ Loaded ${_purchases.length} carbon footprint records');
+    } catch (e) {
+      print('❌ Error loading carbon history: $e');
+    }
+  }
+
+  // Load user's carbon statistics from backend
+  Future<Map<String, dynamic>> loadUserStatistics(String userId) async {
+    try {
+      print('🔄 Loading carbon statistics from backend for user: $userId');
+      final stats = await CarbonFootprintService.getUserStatistics(userId);
+      print('✅ Loaded carbon statistics');
+      return stats;
+    } catch (e) {
+      print('❌ Error loading carbon statistics: $e');
+      return {};
+    }
+  }
+
+  // Calculate carbon footprint for a product using backend
+  Future<Map<String, dynamic>> calculateProductCarbonFootprint({
+    required String userId,
+    required String productId,
+    required String productName,
+    required String category,
+    required String materials,
+    required double weight,
+    required String transportMode,
+    required double transportDistance,
+    required String manufacturingType,
+    required String packagingType,
+    required double packagingWeight,
+    required String disposalMethod,
+  }) async {
+    try {
+      print('🔄 Calculating carbon footprint from backend...');
+      final result = await CarbonFootprintService.calculateCarbonFootprint(
+        userId: userId,
+        productId: productId,
+        productName: productName,
+        category: category,
+        materials: materials,
+        weight: weight,
+        transportMode: transportMode,
+        transportDistance: transportDistance,
+        manufacturingType: manufacturingType,
+        packagingType: packagingType,
+        packagingWeight: packagingWeight,
+        disposalMethod: disposalMethod,
+      );
+      
+      print('✅ Carbon footprint calculated: ${result['totalCarbonFootprint']} kg CO2');
+      return result;
+    } catch (e) {
+      print('❌ Error calculating carbon footprint: $e');
+      rethrow;
+    }
+  }
+
+  // Initialize emission factors in backend
+  Future<void> initializeEmissionFactors() async {
+    try {
+      await CarbonFootprintService.initializeEmissionFactors();
+    } catch (e) {
+      print('❌ Error initializing emission factors: $e');
     }
   }
 
