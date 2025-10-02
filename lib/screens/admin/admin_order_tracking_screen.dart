@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/orders_provider.dart';
 import 'dart:math';
 
 class AdminOrderTrackingScreen extends StatefulWidget {
@@ -20,6 +22,7 @@ class _AdminOrderTrackingScreenState extends State<AdminOrderTrackingScreen>
   List<Map<String, dynamic>> _deliveredOrders = [];
   
   bool _isLoading = true;
+  bool _useBackend = true; // Toggle to use backend or sample data
 
   @override
   void initState() {
@@ -29,8 +32,55 @@ class _AdminOrderTrackingScreenState extends State<AdminOrderTrackingScreen>
       vsync: this,
     );
     _tabController = TabController(length: 4, vsync: this);
-    _loadSampleData();
+    _loadOrders();
     _fadeController.forward();
+  }
+
+  // Load orders from backend
+  Future<void> _loadOrders() async {
+    if (!_useBackend) {
+      _loadSampleData();
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      print('🔄 Loading orders from backend...');
+      final ordersProvider = Provider.of<OrdersProvider>(context, listen: false);
+      
+      // Load all orders from backend
+      await ordersProvider.loadAllOrders(limit: 200);
+      
+      final allOrders = ordersProvider.allOrders;
+      print('✅ Loaded ${allOrders.length} orders from backend');
+
+      setState(() {
+        _allOrders = allOrders;
+        _pendingOrders = allOrders.where((order) => 
+          (order['status']?.toString().toUpperCase() ?? '') == 'PENDING'
+        ).toList();
+        _shippedOrders = allOrders.where((order) => 
+          (order['status']?.toString().toUpperCase() ?? '') == 'SHIPPED'
+        ).toList();
+        _deliveredOrders = allOrders.where((order) => 
+          (order['status']?.toString().toUpperCase() ?? '') == 'DELIVERED'
+        ).toList();
+        _isLoading = false;
+      });
+
+      print('📊 Orders breakdown:');
+      print('   Total: ${_allOrders.length}');
+      print('   Pending: ${_pendingOrders.length}');
+      print('   Shipped: ${_shippedOrders.length}');
+      print('   Delivered: ${_deliveredOrders.length}');
+    } catch (e) {
+      print('❌ Error loading orders from backend: $e');
+      // Fallback to sample data
+      _loadSampleData();
+    }
   }
 
   @override

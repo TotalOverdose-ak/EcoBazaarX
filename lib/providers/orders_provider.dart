@@ -45,19 +45,27 @@ class OrdersProvider extends ChangeNotifier {
   }
 
   // Load all orders (for admin/shopkeeper)
-  Future<void> loadAllOrders() async {
+  Future<void> loadAllOrders({int limit = 100}) async {
     try {
-      // Since getAllOrders doesn't exist, we'll use getOrdersByStatus for now
-      // This is a temporary solution until the backend API is fully implemented
-      final pendingOrders = await OrdersService.getOrdersByStatus('pending');
-      final completedOrders = await OrdersService.getOrdersByStatus('completed');
-      final cancelledOrders = await OrdersService.getOrdersByStatus('cancelled');
-      
-      _allOrders = [...pendingOrders, ...completedOrders, ...cancelledOrders];
+      // Use the new getAllOrders method from OrdersService
+      _allOrders = await OrdersService.getAllOrders(limit: limit);
       notifyListeners();
     } catch (e) {
       print('Error loading all orders: $e');
       _error = 'Failed to load all orders';
+      
+      // Fallback to loading by status
+      try {
+        final pendingOrders = await OrdersService.getOrdersByStatus('PENDING');
+        final shippedOrders = await OrdersService.getOrdersByStatus('SHIPPED');
+        final deliveredOrders = await OrdersService.getOrdersByStatus('DELIVERED');
+        final cancelledOrders = await OrdersService.getOrdersByStatus('CANCELLED');
+        
+        _allOrders = [...pendingOrders, ...shippedOrders, ...deliveredOrders, ...cancelledOrders];
+        notifyListeners();
+      } catch (fallbackError) {
+        print('Fallback error loading orders: $fallbackError');
+      }
     }
   }
 
@@ -147,14 +155,120 @@ class OrdersProvider extends ChangeNotifier {
     }
   }
 
-  // Initialize sample orders (for demo purposes)
-  Future<void> initializeSampleOrders() async {
+  // Track order (get detailed tracking info)
+  Future<Map<String, dynamic>?> trackOrder(String orderId) async {
     try {
-      // Since initializeSampleOrders doesn't exist in OrdersService,
-      // we'll skip this functionality for now
-      print('Sample orders initialization not available - backend API not implemented yet');
+      print('🔄 Tracking order: $orderId');
+      final trackingInfo = await OrdersService.trackOrder(orderId);
+      if (trackingInfo != null) {
+        print('✅ Order tracking info loaded');
+      }
+      return trackingInfo;
     } catch (e) {
-      print('Error initializing sample orders: $e');
+      print('❌ Error tracking order: $e');
+      _error = 'Failed to track order: ${e.toString()}';
+      return null;
+    }
+  }
+
+  // Update order tracking info
+  Future<Map<String, dynamic>> updateOrderTracking({
+    required String orderId,
+    required String trackingId,
+    required String carrier,
+    String? estimatedDelivery,
+    String? trackingUrl,
+  }) async {
+    try {
+      print('🔄 Updating order tracking: $orderId');
+      final result = await OrdersService.updateOrderTracking(
+        orderId: orderId,
+        trackingId: trackingId,
+        carrier: carrier,
+        estimatedDelivery: estimatedDelivery,
+        trackingUrl: trackingUrl,
+      );
+      
+      if (result['success']) {
+        print('✅ Order tracking updated');
+        // Reload orders after updating
+        await loadAllOrders();
+      }
+      
+      return result;
+    } catch (e) {
+      print('❌ Error updating order tracking: $e');
+      return {
+        'success': false,
+        'message': 'Failed to update tracking info: ${e.toString()}',
+      };
+    }
+  }
+
+  // Get order timeline/history
+  Future<List<Map<String, dynamic>>> getOrderTimeline(String orderId) async {
+    try {
+      print('🔄 Loading order timeline: $orderId');
+      final timeline = await OrdersService.getOrderTimeline(orderId);
+      print('✅ Loaded ${timeline.length} timeline events');
+      return timeline;
+    } catch (e) {
+      print('❌ Error loading order timeline: $e');
+      return [];
+    }
+  }
+
+  // Add order note
+  Future<Map<String, dynamic>> addOrderNote({
+    required String orderId,
+    required String note,
+    String? addedBy,
+  }) async {
+    try {
+      print('🔄 Adding order note: $orderId');
+      final result = await OrdersService.addOrderNote(
+        orderId: orderId,
+        note: note,
+        addedBy: addedBy,
+      );
+      
+      if (result['success']) {
+        print('✅ Order note added');
+      }
+      
+      return result;
+    } catch (e) {
+      print('❌ Error adding order note: $e');
+      return {
+        'success': false,
+        'message': 'Failed to add note: ${e.toString()}',
+      };
+    }
+  }
+
+  // Get recent orders
+  Future<List<Map<String, dynamic>>> getRecentOrders(String userId, {int limit = 10}) async {
+    try {
+      print('🔄 Loading recent orders for user: $userId');
+      final orders = await OrdersService.getRecentOrders(userId, limit: limit);
+      print('✅ Loaded ${orders.length} recent orders');
+      return orders;
+    } catch (e) {
+      print('❌ Error loading recent orders: $e');
+      return [];
+    }
+  }
+
+  // Get order history
+  Future<List<Map<String, dynamic>>> getOrderHistory(String userId, {int limit = 50}) async {
+    try {
+      print('🔄 Loading order history for user: $userId');
+      final history = await OrdersService.getOrderHistory(userId, limit: limit);
+      print('✅ Loaded ${history.length} orders in history');
+      return history;
+    } catch (e) {
+      print('❌ Error loading order history: $e');
+      return [];
     }
   }
 

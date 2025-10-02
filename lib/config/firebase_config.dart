@@ -56,17 +56,28 @@ class FirebaseConfig {
   static const String storageRulesPath = 'storage.rules';
 
   // Environment settings
-  static const bool isProduction = true; // Set to false to use local backend
-  static const String environment = 'production'; // Use development for local backend
+  static const bool isProduction = true; // Set to false for local development
+  static const String environment = 'production'; // 'development' or 'production'
 
-  // API endpoints (if needed for custom backend)
-  // For development, use local backend. For production, use Render backend
-  //static const String baseApiUrl = 'http://localhost:10000'; // Local development - WORKING
-   static const String baseApiUrl = 'https://backend-springboot-ymgn.onrender.com'; // Production - HAS ISSUES
-  static const String authApiUrl = '$baseApiUrl/auth';
-  static const String storesApiUrl = '$baseApiUrl/stores';
-  static const String productsApiUrl = '$baseApiUrl/products';
-  static const String ordersApiUrl = '$baseApiUrl/orders';
+  // Backend API URLs
+  // LOCAL DEVELOPMENT: Use localhost backend (start with .\mvnw.cmd spring-boot:run)
+  static const String localApiUrl = 'http://localhost:8080';
+  
+  // PRODUCTION: Use Render deployed backend
+  static const String productionApiUrl = 'https://backend-springboot-ymgn.onrender.com';
+  
+  // Auto-select based on environment
+  static const String baseApiUrl = isProduction ? productionApiUrl : localApiUrl;
+  
+  // API endpoint paths
+  static const String authApiUrl = '$baseApiUrl/api/auth';
+  static const String storesApiUrl = '$baseApiUrl/api/stores';
+  static const String productsApiUrl = '$baseApiUrl/api/products';
+  static const String ordersApiUrl = '$baseApiUrl/api/orders';
+  static const String ecoChallengesApiUrl = '$baseApiUrl/api/eco-challenges';
+  static const String ecoDiscountsApiUrl = '$baseApiUrl/api/eco-discounts';
+  static const String leaderboardApiUrl = '$baseApiUrl/api/leaderboard';
+  static const String carbonFootprintApiUrl = '$baseApiUrl/api/carbon-footprint';
 
   // Error messages
   static const Map<String, String> errorMessages = {
