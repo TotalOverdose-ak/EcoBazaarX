@@ -273,14 +273,192 @@ class OrdersService {
 
   // Get order history
   static Future<List<Map<String, dynamic>>> getOrderHistory(String userId, {int limit = 50}) async {
-    // TODO: Implement with Spring Boot API
-    return [];
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl$_ordersEndpoint/user/$userId?limit=$limit'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('Error getting order history: $e');
+      return [];
+    }
   }
 
   // Get recent orders
   static Future<List<Map<String, dynamic>>> getRecentOrders(String userId, {int limit = 10}) async {
-    // TODO: Implement with Spring Boot API
-    return [];
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl$_ordersEndpoint/user/$userId/recent?limit=$limit'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        return getUserOrders(userId); // Fallback to all user orders
+      }
+    } catch (e) {
+      print('Error getting recent orders: $e');
+      return getUserOrders(userId); // Fallback to all user orders
+    }
+  }
+
+  // Get all orders (for admin)
+  static Future<List<Map<String, dynamic>>> getAllOrders({int limit = 100}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl$_ordersEndpoint?limit=$limit'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('Error getting all orders: $e');
+      return [];
+    }
+  }
+
+  // Track order (get detailed tracking info)
+  static Future<Map<String, dynamic>?> trackOrder(String orderId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl$_ordersEndpoint/$orderId/track'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        // Fallback to basic order info
+        return getOrderById(orderId);
+      }
+    } catch (e) {
+      print('Error tracking order: $e');
+      return getOrderById(orderId);
+    }
+  }
+
+  // Update order tracking info
+  static Future<Map<String, dynamic>> updateOrderTracking({
+    required String orderId,
+    required String trackingId,
+    required String carrier,
+    String? estimatedDelivery,
+    String? trackingUrl,
+  }) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$_baseUrl$_ordersEndpoint/$orderId/tracking'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'trackingId': trackingId,
+          'carrier': carrier,
+          'estimatedDelivery': estimatedDelivery,
+          'trackingUrl': trackingUrl,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Tracking info updated successfully',
+          'data': jsonDecode(response.body),
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to update tracking info: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error updating tracking info: $e',
+      };
+    }
+  }
+
+  // Get order timeline/history
+  static Future<List<Map<String, dynamic>>> getOrderTimeline(String orderId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl$_ordersEndpoint/$orderId/timeline'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('Error getting order timeline: $e');
+      return [];
+    }
+  }
+
+  // Add order note/comment
+  static Future<Map<String, dynamic>> addOrderNote({
+    required String orderId,
+    required String note,
+    String? addedBy,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl$_ordersEndpoint/$orderId/notes'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'note': note,
+          'addedBy': addedBy ?? 'System',
+          'timestamp': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return {
+          'success': true,
+          'message': 'Note added successfully',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': 'Failed to add note: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error adding note: $e',
+      };
+    }
   }
 
   // Calculate order total
