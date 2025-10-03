@@ -14,7 +14,7 @@ class PaymentService {
   // static final CollectionReference _transactionsCollection = _firestore.collection('transactions');
   // static final CollectionReference _refundsCollection = _firestore.collection('refunds');
 
-  // Process payment (original method)
+  // Process payment (original method) - Now uses backend API
   static Future<Map<String, dynamic>> processPaymentOriginal({
     required String orderId,
     required double amount,
@@ -22,42 +22,138 @@ class PaymentService {
     required String userId,
     Map<String, dynamic>? paymentDetails,
   }) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': false,
-      'message': 'Payment processing will be implemented with Spring Boot backend',
-    };
+    try {
+      print('🔄 Processing payment via backend...');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/payments/process'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'orderId': orderId,
+          'userId': userId,
+          'paymentMethod': paymentMethod,
+          'paymentGateway': 'razorpay',
+          'amount': amount,
+          'gatewayResponse': paymentDetails ?? {'success': true},
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Payment processed: ${data['paymentId']}');
+        return data;
+      } else {
+        print('❌ Payment failed: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Payment processing failed: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Payment error: $e');
+      return {
+        'success': false,
+        'message': 'Payment error: $e',
+      };
+    }
   }
 
-  // Get payment status
+  // Get payment status - Backend API
   static Future<Map<String, dynamic>?> getPaymentStatus(String paymentId) async {
-    // TODO: Implement with Spring Boot API
-    return null;
+    try {
+      print('🔄 Fetching payment status: $paymentId');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/payments/$paymentId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Payment status: ${data['status']}');
+        return data;
+      } else if (response.statusCode == 404) {
+        print('⚠️ Payment not found: $paymentId');
+        return null;
+      } else {
+        print('❌ Failed to fetch payment: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ Error fetching payment status: $e');
+      return null;
+    }
   }
 
-  // Get user payments
+  // Get user payments - Backend API
   static Future<List<Map<String, dynamic>>> getUserPayments(String userId) async {
-    // TODO: Implement with Spring Boot API
-    return [];
+    try {
+      print('🔄 Fetching user payments: $userId');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/payments/user/$userId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        print('✅ Loaded ${data.length} payments');
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        print('❌ Failed to fetch payments: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching user payments: $e');
+      return [];
+    }
   }
 
-  // Get payment by ID
+  // Get payment by ID - Backend API
   static Future<Map<String, dynamic>?> getPaymentById(String paymentId) async {
-    // TODO: Implement with Spring Boot API
-    return null;
+    return await getPaymentStatus(paymentId);
   }
 
-  // Refund payment
+  // Refund payment - Backend API
   static Future<Map<String, dynamic>> refundPayment({
     required String paymentId,
     required double amount,
     String? reason,
   }) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': false,
-      'message': 'Payment refund will be implemented with Spring Boot backend',
-    };
+    try {
+      print('🔄 Processing refund: $paymentId');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/payments/$paymentId/refund'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'amount': amount,
+          'reason': reason ?? 'Refund requested by user',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Refund processed: ${data['refundId']}');
+        return data;
+      } else {
+        print('❌ Refund failed: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Refund processing failed: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Refund error: $e');
+      return {
+        'success': false,
+        'message': 'Refund error: $e',
+      };
+    }
   }
 
   // Get payment methods
@@ -97,64 +193,202 @@ class PaymentService {
     ];
   }
 
-  // Validate payment details
+  // Validate payment details - Client-side validation
   static Future<Map<String, dynamic>> validatePaymentDetails(Map<String, dynamic> paymentDetails) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'valid': false,
-      'message': 'Payment validation will be implemented with Spring Boot backend',
-    };
+    try {
+      // Basic validation
+      if (paymentDetails.isEmpty) {
+        return {
+          'valid': false,
+          'message': 'Payment details cannot be empty',
+        };
+      }
+
+      final String? paymentMethod = paymentDetails['paymentMethod'];
+      if (paymentMethod == null || paymentMethod.isEmpty) {
+        return {
+          'valid': false,
+          'message': 'Payment method is required',
+        };
+      }
+
+      final double? amount = paymentDetails['amount'];
+      if (amount == null || amount <= 0) {
+        return {
+          'valid': false,
+          'message': 'Invalid payment amount',
+        };
+      }
+
+      print('✅ Payment details validated');
+      return {
+        'valid': true,
+        'message': 'Payment details are valid',
+      };
+    } catch (e) {
+      print('❌ Validation error: $e');
+      return {
+        'valid': false,
+        'message': 'Validation error: $e',
+      };
+    }
   }
 
-  // Get payment statistics
+  // Get payment statistics - Backend API
   static Future<Map<String, dynamic>> getPaymentStatistics(String userId) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'totalPayments': 0,
-      'totalAmount': 0.0,
-      'successfulPayments': 0,
-      'failedPayments': 0,
-      'refundedPayments': 0,
-    };
+    try {
+      print('🔄 Fetching payment statistics...');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.get(
+        Uri.parse('$baseUrl/api/payments/stats'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Payment stats loaded');
+        return data;
+      } else {
+        print('❌ Failed to fetch stats: ${response.statusCode}');
+        return _getDefaultStats();
+      }
+    } catch (e) {
+      print('❌ Error fetching stats: $e');
+      return _getDefaultStats();
+    }
   }
 
-  // Get transaction history
+  // Get transaction history - Backend API (using user payments)
   static Future<List<Map<String, dynamic>>> getTransactionHistory(String userId, {int limit = 50}) async {
-    // TODO: Implement with Spring Boot API
-    return [];
+    try {
+      final payments = await getUserPayments(userId);
+      // Limit results if needed
+      return payments.take(limit).toList();
+    } catch (e) {
+      print('❌ Error fetching transaction history: $e');
+      return [];
+    }
   }
 
-  // Generate payment receipt
+  // Generate payment receipt - Creates receipt from payment data
   static Future<Map<String, dynamic>> generatePaymentReceipt(String paymentId) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': false,
-      'message': 'Payment receipt generation will be implemented with Spring Boot backend',
-    };
+    try {
+      print('🔄 Generating receipt: $paymentId');
+      
+      final payment = await getPaymentStatus(paymentId);
+      
+      if (payment == null) {
+        return {
+          'success': false,
+          'message': 'Payment not found',
+        };
+      }
+
+      // Generate receipt data
+      final receipt = {
+        'success': true,
+        'receiptId': 'RCPT_${DateTime.now().millisecondsSinceEpoch}',
+        'paymentId': paymentId,
+        'transactionId': payment['transactionId'],
+        'orderId': payment['orderId'],
+        'amount': payment['amount'],
+        'paymentMethod': payment['paymentMethod'],
+        'status': payment['status'],
+        'date': payment['createdAt'] ?? DateTime.now().toIso8601String(),
+      };
+
+      print('✅ Receipt generated: ${receipt['receiptId']}');
+      return receipt;
+    } catch (e) {
+      print('❌ Receipt generation error: $e');
+      return {
+        'success': false,
+        'message': 'Receipt generation error: $e',
+      };
+    }
   }
 
-  // Get refund status
+  // Get refund status - Same as payment status (checks if REFUNDED)
   static Future<Map<String, dynamic>?> getRefundStatus(String refundId) async {
-    // TODO: Implement with Spring Boot API
-    return null;
+    try {
+      // Extract transaction ID from refund ID if needed
+      final payment = await getPaymentStatus(refundId);
+      return payment;
+    } catch (e) {
+      print('❌ Error fetching refund status: $e');
+      return null;
+    }
   }
 
-  // Get user refunds
+  // Get user refunds - Filter refunded payments
   static Future<List<Map<String, dynamic>>> getUserRefunds(String userId) async {
-    // TODO: Implement with Spring Boot API
-    return [];
+    try {
+      final payments = await getUserPayments(userId);
+      final refunds = payments.where((p) => p['status'] == 'REFUNDED').toList();
+      print('✅ Found ${refunds.length} refunds');
+      return refunds;
+    } catch (e) {
+      print('❌ Error fetching refunds: $e');
+      return [];
+    }
   }
 
-  // Calculate payment fees
+  // Calculate payment fees - Based on payment method
   static Future<Map<String, dynamic>> calculatePaymentFees({
     required double amount,
     required String paymentMethod,
   }) async {
-    // TODO: Implement with Spring Boot API
+    try {
+      double feePercentage = 0.0;
+      
+      // Fee structure based on payment method
+      switch (paymentMethod.toLowerCase()) {
+        case 'credit_card':
+        case 'debit_card':
+          feePercentage = 0.02; // 2%
+          break;
+        case 'upi':
+          feePercentage = 0.0; // Free
+          break;
+        case 'net_banking':
+          feePercentage = 0.01; // 1%
+          break;
+        case 'wallet':
+          feePercentage = 0.005; // 0.5%
+          break;
+        default:
+          feePercentage = 0.02; // Default 2%
+      }
+
+      final fees = amount * feePercentage;
+      final total = amount + fees;
+
+      print('✅ Fees calculated: ₹$fees for $paymentMethod');
+      return {
+        'amount': amount,
+        'fees': fees,
+        'feePercentage': feePercentage * 100,
+        'total': total,
+        'paymentMethod': paymentMethod,
+      };
+    } catch (e) {
+      print('❌ Fee calculation error: $e');
+      return {
+        'amount': amount,
+        'fees': 0.0,
+        'total': amount,
+      };
+    }
+  }
+
+  // Default statistics fallback
+  static Map<String, dynamic> _getDefaultStats() {
     return {
-      'amount': amount,
-      'fees': 0.0,
-      'total': amount,
+      'totalPayments': 0,
+      'completedPayments': 0,
+      'failedPayments': 0,
+      'totalAmount': 0.0,
     };
   }
 
@@ -279,18 +513,74 @@ class PaymentService {
     }
   }
 
-  // Simulate Razorpay payment
+  // Simulate Razorpay payment - Development/Testing
   static Future<Map<String, dynamic>> simulateRazorpayPayment({
     required double amount,
     required String currency,
     required String orderId,
   }) async {
-    // TODO: Implement with Spring Boot API
-    return {
-      'success': true,
-      'paymentId': generatePaymentId(),
-      'message': 'Payment successful (simulated)',
-    };
+    try {
+      // Simulate payment delay
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // 90% success rate for simulation
+      final isSuccess = Random().nextDouble() > 0.1;
+      
+      if (isSuccess) {
+        print('✅ Simulated payment successful: $orderId');
+        return {
+          'success': true,
+          'paymentId': generatePaymentId(),
+          'orderId': orderId,
+          'amount': amount,
+          'currency': currency,
+          'message': 'Payment successful (simulated)',
+        };
+      } else {
+        print('❌ Simulated payment failed: $orderId');
+        return {
+          'success': false,
+          'message': 'Payment failed (simulated)',
+          'error': 'Insufficient funds',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Simulation error: $e',
+      };
+    }
+  }
+
+  // Cancel payment - Backend API
+  static Future<Map<String, dynamic>> cancelPayment(String paymentId) async {
+    try {
+      print('🔄 Canceling payment: $paymentId');
+      
+      final String baseUrl = FirebaseConfig.baseApiUrl;
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/payments/$paymentId/cancel'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('✅ Payment canceled: $paymentId');
+        return data;
+      } else {
+        print('❌ Cancel failed: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Payment cancellation failed: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Cancel error: $e');
+      return {
+        'success': false,
+        'message': 'Cancel error: $e',
+      };
+    }
   }
 
   // Process payment (Spring Boot API implementation)
