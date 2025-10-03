@@ -9,7 +9,7 @@ class ApiConfig {
   // ============================================================
   
   /// Local development backend URL
-  static const String LOCAL_BASE_URL = 'http://localhost:10000/api';
+  static const String LOCAL_BASE_URL = 'http://localhost:8080/api';
   
   /// Production backend URL (Railway/Cloud deployment)
   /// TODO: Update with your Railway production URL

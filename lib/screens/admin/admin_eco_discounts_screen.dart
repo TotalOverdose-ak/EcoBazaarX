@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/local_eco_discounts_service.dart';
-import '../../services/eco_discounts_service.dart';
 
 class AdminEcoDiscountsScreen extends StatefulWidget {
   const AdminEcoDiscountsScreen({super.key});
@@ -44,33 +43,15 @@ class _AdminEcoDiscountsScreenState extends State<AdminEcoDiscountsScreen>
     });
 
     try {
-      // Fetch from backend API
-      final discounts = await EcoDiscountsService.getAllDiscounts();
+      final discounts = await LocalEcoDiscountsService.getAllDiscounts();
+      final stats = await LocalEcoDiscountsService.getDiscountStatistics();
       
       setState(() {
-        _allDiscounts = discounts.map((d) => d.toMap()).toList();
-        // Calculate stats from fetched data
-        _discountStats = {
-          'total': discounts.length,
-          'active': discounts.where((d) => d.isActive).length,
-          'inactive': discounts.where((d) => !d.isActive).length,
-        };
+        _allDiscounts = discounts;
+        _discountStats = stats;
       });
-      print('✅ Loaded ${discounts.length} discounts from backend');
     } catch (e) {
-      print('❌ Error loading discount data from backend: $e');
-      // Fallback to local storage
-      try {
-        final localDiscounts = await LocalEcoDiscountsService.getAllDiscounts();
-        final stats = await LocalEcoDiscountsService.getDiscountStatistics();
-        setState(() {
-          _allDiscounts = localDiscounts;
-          _discountStats = stats;
-        });
-        print('⚠️ Loaded ${localDiscounts.length} discounts from local storage');
-      } catch (e2) {
-        print('❌ Error loading local discounts: $e2');
-      }
+      print('Error loading discount data: $e');
     } finally {
       setState(() {
         _isLoading = false;
@@ -667,32 +648,15 @@ class _AdminEcoDiscountsScreenState extends State<AdminEcoDiscountsScreen>
 
   Future<void> _toggleDiscountStatus(Map<String, dynamic> discount) async {
     try {
-      final discountCode = discount['discountCode']?.toString() ?? discount['id'].toString();
-      final currentStatus = discount['isActive'] ?? true;
+      await LocalEcoDiscountsService.toggleDiscountStatus(discount['id'].toString());
+      _loadData();
       
-      final result = await EcoDiscountsService.toggleDiscountStatus(
-        discountCode: discountCode,
-        isActive: !currentStatus,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Discount ${discount['isActive'] ? 'deactivated' : 'activated'} successfully!'),
+          backgroundColor: const Color(0xFF8BC34A),
+        ),
       );
-      
-      if (result['success'] == true) {
-        print('✅ Discount status toggled in backend');
-        _loadData();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Discount ${currentStatus ? 'deactivated' : 'activated'} in backend! ✅'),
-            backgroundColor: const Color(0xFF8BC34A),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: ${result['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -741,34 +705,19 @@ class _AdminEcoDiscountsScreenState extends State<AdminEcoDiscountsScreen>
 
     if (confirmed == true) {
       try {
-        final discountCode = discount['discountCode']?.toString() ?? discount['id'].toString();
+        await LocalEcoDiscountsService.deleteDiscount(discount['id'].toString());
+        _loadData();
         
-        final result = await EcoDiscountsService.deleteDiscountAdmin(
-          discountCode: discountCode,
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Discount deleted successfully!'),
+            backgroundColor: Color(0xFF8BC34A),
+          ),
         );
-        
-        if (result['success'] == true) {
-          print('✅ Discount deleted from backend');
-          _loadData();
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Discount deleted from backend! ✅'),
-              backgroundColor: Color(0xFF8BC34A),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed: ${result['message']}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('Error deleting discount: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -1125,40 +1074,36 @@ class _CreateDiscountDialogState extends State<CreateDiscountDialog> {
     });
 
     try {
+      final now = DateTime.now();
       final validDays = int.parse(_validDaysController.text);
       
-      // Call backend API to create discount
-      final result = await EcoDiscountsService.createDiscountAdmin(
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        discountType: _discountType,
-        discountValue: double.parse(_discountValueController.text),
-        minOrderAmount: double.parse(_minOrderController.text),
-        maxDiscountAmount: double.parse(_maxDiscountController.text),
-        minEcoPoints: int.parse(_minPointsController.text),
-        applicableCategory: _selectedCategories.isEmpty ? 'ALL' : _selectedCategories.first,
-        usageLimit: int.parse(_usageLimitController.text),
-        validDays: validDays,
-        promoCode: null,
-      );
+      final discountData = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'discountType': _discountType,
+        'discountValue': double.parse(_discountValueController.text),
+        'minEcoPoints': int.parse(_minPointsController.text),
+        'minOrderAmount': double.parse(_minOrderController.text),
+        'maxDiscountAmount': double.parse(_maxDiscountController.text),
+        'usageLimit': int.parse(_usageLimitController.text),
+        'validFrom': now.millisecondsSinceEpoch,
+        'validUntil': now.add(Duration(days: validDays)).millisecondsSinceEpoch,
+        'isActive': true,
+        'applicableCategories': _selectedCategories,
+      };
+
+      final success = await LocalEcoDiscountsService.createDiscount(discountData);
       
-      if (result['success'] == true) {
-        print('✅ Discount created in backend');
+      if (success) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Discount created in backend! ✅'),
+            content: Text('Discount created successfully!'),
             backgroundColor: Color(0xFF8BC34A),
           ),
         );
       } else {
-        print('❌ Failed to create: ${result['message']}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: ${result['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        throw Exception('Failed to create discount');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1481,41 +1426,31 @@ class _EditDiscountDialogState extends State<EditDiscountDialog> {
     });
 
     try {
-      final discountCode = widget.discount['discountCode']?.toString() ?? widget.discount['id'].toString();
-      final validDays = 30; // Default validity
-      
-      // Call backend API to update discount
-      final result = await EcoDiscountsService.updateDiscountAdmin(
-        discountCode: discountCode,
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        discountType: _discountType,
-        discountValue: double.parse(_discountValueController.text),
-        minOrderAmount: double.parse(_minOrderController.text),
-        maxDiscountAmount: double.parse(_maxDiscountController.text),
-        minEcoPoints: int.parse(_minPointsController.text),
-        applicableCategory: 'ALL',
-        usageLimit: int.parse(_usageLimitController.text),
-        validDays: validDays,
+      final discountData = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'discountValue': double.parse(_discountValueController.text),
+        'minEcoPoints': int.parse(_minPointsController.text),
+        'minOrderAmount': double.parse(_minOrderController.text),
+        'maxDiscountAmount': double.parse(_maxDiscountController.text),
+        'usageLimit': int.parse(_usageLimitController.text),
+      };
+
+      final success = await LocalEcoDiscountsService.updateDiscount(
+        widget.discount['id'].toString(),
+        discountData,
       );
       
-      if (result['success'] == true) {
-        print('✅ Discount updated in backend');
+      if (success) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Discount updated in backend! ✅'),
+            content: Text('Discount updated successfully!'),
             backgroundColor: Color(0xFF8BC34A),
           ),
         );
       } else {
-        print('❌ Failed to update: ${result['message']}');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed: ${result['message']}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        throw Exception('Failed to update discount');
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
