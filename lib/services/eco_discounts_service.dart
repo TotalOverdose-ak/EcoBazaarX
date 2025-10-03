@@ -226,6 +226,236 @@ class EcoDiscountsService {
     }
   }
 
+  // Get all discounts (Admin)
+  static Future<List<EcoDiscountData>> getAllDiscounts() async {
+    try {
+      print('🔄 Fetching all eco discounts from backend...');
+      
+      final response = await http.get(
+        Uri.parse(baseUrl),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> data = responseData['discounts'] ?? [];
+        final discounts = data.map((json) => EcoDiscountData.fromMap(json)).toList();
+        print('✅ Loaded ${discounts.length} eco discounts from backend');
+        return discounts;
+      } else {
+        print('❌ Failed to fetch discounts: ${response.statusCode}');
+        return [];
+      }
+    } catch (e) {
+      print('❌ Error fetching discounts: $e');
+      return [];
+    }
+  }
+
+  // Create discount (Admin)
+  static Future<Map<String, dynamic>> createDiscountAdmin({
+    required String title,
+    required String description,
+    required String discountType,
+    required double discountValue,
+    required double minOrderAmount,
+    required double maxDiscountAmount,
+    required int minEcoPoints,
+    required String applicableCategory,
+    required int usageLimit,
+    required int validDays,
+    String? promoCode,
+  }) async {
+    try {
+      print('🔄 Creating eco discount: $title');
+      final response = await http.post(
+        Uri.parse(baseUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'discountCode': promoCode ?? 'DISCOUNT_${DateTime.now().millisecondsSinceEpoch}',
+          'title': title,
+          'description': description,
+          'discountType': discountType.toUpperCase(),
+          'discountValue': discountValue,
+          'minimumOrderAmount': minOrderAmount,
+          'maximumDiscountAmount': maxDiscountAmount,
+          'requiredEcoPoints': minEcoPoints,
+          'requiresEcoPoints': minEcoPoints > 0,
+          'applicableCategory': applicableCategory,
+          'usageLimit': usageLimit,
+          'userUsageLimit': 1,
+          'isActive': true,
+          'validFrom': DateTime.now().toIso8601String(),
+          'validUntil': DateTime.now().add(Duration(days: validDays)).toIso8601String(),
+          'createdBy': 'admin',
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      print('📤 Response body: ${response.body}');
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Created eco discount: $title');
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'message': 'Discount created successfully',
+          'discount': responseData['discount'] ?? responseData,
+        };
+      } else {
+        print('❌ Failed to create discount: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to create discount: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error creating discount: $e');
+      return {
+        'success': false,
+        'message': 'Error creating discount: $e',
+      };
+    }
+  }
+
+  // Update discount (Admin)
+  static Future<Map<String, dynamic>> updateDiscountAdmin({
+    required String discountCode,
+    required String title,
+    required String description,
+    required String discountType,
+    required double discountValue,
+    required double minOrderAmount,
+    required double maxDiscountAmount,
+    required int minEcoPoints,
+    required String applicableCategory,
+    required int usageLimit,
+    required int validDays,
+  }) async {
+    try {
+      print('🔄 Updating eco discount: $discountCode');
+      final response = await http.put(
+        Uri.parse('$baseUrl/$discountCode'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'title': title,
+          'description': description,
+          'discountType': discountType.toUpperCase(),
+          'discountValue': discountValue,
+          'minimumOrderAmount': minOrderAmount,
+          'maximumDiscountAmount': maxDiscountAmount,
+          'requiredEcoPoints': minEcoPoints,
+          'requiresEcoPoints': minEcoPoints > 0,
+          'applicableCategory': applicableCategory,
+          'usageLimit': usageLimit,
+          'validUntil': DateTime.now().add(Duration(days: validDays)).toIso8601String(),
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      print('📤 Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Updated eco discount: $discountCode');
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'message': 'Discount updated successfully',
+          'discount': responseData['discount'] ?? responseData,
+        };
+      } else {
+        print('❌ Failed to update discount: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to update discount: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error updating discount: $e');
+      return {
+        'success': false,
+        'message': 'Error updating discount: $e',
+      };
+    }
+  }
+
+  // Delete discount (Admin)
+  static Future<Map<String, dynamic>> deleteDiscountAdmin({
+    required String discountCode,
+  }) async {
+    try {
+      print('🔄 Deleting eco discount: $discountCode');
+      final response = await http.delete(
+        Uri.parse('$baseUrl/$discountCode'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ Deleted eco discount: $discountCode');
+        return {
+          'success': true,
+          'message': 'Discount deleted successfully',
+        };
+      } else {
+        print('❌ Failed to delete discount: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to delete discount: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error deleting discount: $e');
+      return {
+        'success': false,
+        'message': 'Error deleting discount: $e',
+      };
+    }
+  }
+
+  // Toggle discount status (Admin)
+  static Future<Map<String, dynamic>> toggleDiscountStatus({
+    required String discountCode,
+    required bool isActive,
+  }) async {
+    try {
+      print('🔄 Toggling discount status: $discountCode to $isActive');
+      final response = await http.put(
+        Uri.parse('$baseUrl/$discountCode'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'isActive': isActive,
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Toggled discount status: $discountCode');
+        return {
+          'success': true,
+          'message': 'Discount status updated successfully',
+        };
+      } else {
+        print('❌ Failed to toggle status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to toggle status: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error toggling status: $e');
+      return {
+        'success': false,
+        'message': 'Error toggling status: $e',
+      };
+    }
+  }
+
   // Initialize sample discounts
   static Future<bool> initializeSampleDiscounts() async {
     try {

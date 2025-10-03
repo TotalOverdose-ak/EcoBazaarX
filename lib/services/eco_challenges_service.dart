@@ -136,15 +136,15 @@ class EcoChallengeData {
 
   factory EcoChallengeData.fromMap(Map<String, dynamic> map) {
     return EcoChallengeData(
-      id: map['id']?.toString() ?? '',
+      id: map['challengeId']?.toString() ?? map['id']?.toString() ?? '',
       title: map['title']?.toString() ?? '',
       description: map['description']?.toString() ?? '',
       category: map['category']?.toString() ?? 'General',
-      points: map['points']?.toInt() ?? 100,
-      duration: map['duration']?.toInt() ?? 30,
-      difficultyLevel: map['difficultyLevel']?.toString() ?? 'MEDIUM',
-      icon: map['icon']?.toString() ?? '🌱',
-      color: map['color']?.toString() ?? '#4CAF50',
+      points: map['rewardPoints']?.toInt() ?? map['points']?.toInt() ?? 100,
+      duration: map['durationDays']?.toInt() ?? map['duration']?.toInt() ?? 30,
+      difficultyLevel: map['difficulty']?.toString() ?? map['difficultyLevel']?.toString() ?? 'MEDIUM',
+      icon: map['iconName']?.toString() ?? map['icon']?.toString() ?? '🌱',
+      color: map['colorHex']?.toString() ?? map['color']?.toString() ?? '#4CAF50',
       isActive: map['isActive'] ?? true,
       startDate: map['startDate'] != null ? DateTime.tryParse(map['startDate']) : null,
       endDate: map['endDate'] != null ? DateTime.tryParse(map['endDate']) : null,
@@ -152,7 +152,7 @@ class EcoChallengeData {
       currentParticipants: map['currentParticipants']?.toInt() ?? 0,
       imageUrl: map['imageUrl']?.toString(),
       requirements: map['requirements']?.toString(),
-      rewards: map['rewards']?.toString(),
+      rewards: map['reward']?.toString() ?? map['rewards']?.toString(),
       createdAt: map['createdAt'] != null ? DateTime.tryParse(map['createdAt']) : null,
       updatedAt: map['updatedAt'] != null ? DateTime.tryParse(map['updatedAt']) : null,
     );
@@ -169,8 +169,12 @@ class EcoChallengesService {
         headers: {'Content-Type': 'application/json'},
       );
       
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response body: ${response.body}');
+      
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final Map<String, dynamic> responseData = json.decode(response.body);
+        final List<dynamic> data = responseData['challenges'] ?? [];
         final challenges = data.map((json) => EcoChallengeData.fromMap(json)).toList();
         print('✅ Loaded ${challenges.length} eco challenges from backend');
         return challenges;
@@ -295,7 +299,70 @@ class EcoChallengesService {
     };
   }
 
-  // Create new eco challenge
+  // Create new eco challenge (Admin)
+  static Future<Map<String, dynamic>> createChallengeAdmin({
+    required String title,
+    required String description,
+    required String category,
+    required String difficulty,
+    required int rewardPoints,
+    required int durationDays,
+    String? iconName,
+    String? colorHex,
+    int? targetValue,
+    String? targetUnit,
+  }) async {
+    try {
+      print('🔄 Creating eco challenge: $title');
+      final response = await http.post(
+        Uri.parse('${FirebaseConfig.baseApiUrl}/api/eco-challenges'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'title': title,
+          'description': description,
+          'category': category,
+          'difficulty': difficulty.toUpperCase(),
+          'targetValue': targetValue ?? 100,
+          'targetUnit': targetUnit ?? 'points',
+          'durationDays': durationDays,
+          'reward': '$rewardPoints Eco Points',
+          'rewardPoints': rewardPoints,
+          'iconName': iconName ?? 'eco',
+          'colorHex': colorHex ?? '#4CAF50',
+          'isActive': true,
+          'createdBy': 'admin',
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      print('📤 Response body: ${response.body}');
+      
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Created eco challenge: $title');
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'message': 'Challenge created successfully',
+          'challenge': responseData['challenge'] ?? responseData,
+        };
+      } else {
+        print('❌ Failed to create challenge: ${response.statusCode}');
+        print('❌ Error: ${response.body}');
+        return {
+          'success': false,
+          'message': 'Failed to create challenge: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error creating challenge: $e');
+      return {
+        'success': false,
+        'message': 'Error creating challenge: $e',
+      };
+    }
+  }
+
+  // Create new eco challenge (User - Legacy)
   static Future<Map<String, dynamic>> createChallenge({
     required String userId,
     required String title,
@@ -385,7 +452,143 @@ class EcoChallengesService {
     }
   }
 
-  // Delete eco challenge
+  // Update eco challenge (Admin)
+  static Future<Map<String, dynamic>> updateChallengeAdmin({
+    required String challengeId,
+    required String title,
+    required String description,
+    required String category,
+    required String difficulty,
+    required int rewardPoints,
+    required int durationDays,
+    String? iconName,
+    String? colorHex,
+    int? targetValue,
+    String? targetUnit,
+  }) async {
+    try {
+      print('🔄 Updating eco challenge: $challengeId');
+      final response = await http.put(
+        Uri.parse('${FirebaseConfig.baseApiUrl}/api/eco-challenges/$challengeId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'title': title,
+          'description': description,
+          'category': category,
+          'difficulty': difficulty.toUpperCase(),
+          'targetValue': targetValue ?? 100,
+          'targetUnit': targetUnit ?? 'points',
+          'durationDays': durationDays,
+          'reward': '$rewardPoints Eco Points',
+          'rewardPoints': rewardPoints,
+          'iconName': iconName ?? 'eco',
+          'colorHex': colorHex ?? '#4CAF50',
+          'createdBy': 'admin',
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      print('📤 Response body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Updated eco challenge: $challengeId');
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'message': 'Challenge updated successfully',
+          'challenge': responseData['challenge'] ?? responseData,
+        };
+      } else {
+        print('❌ Failed to update challenge: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to update challenge: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error updating challenge: $e');
+      return {
+        'success': false,
+        'message': 'Error updating challenge: $e',
+      };
+    }
+  }
+
+  // Delete eco challenge (Admin)
+  static Future<Map<String, dynamic>> deleteChallengeAdmin({
+    required String challengeId,
+  }) async {
+    try {
+      print('🔄 Deleting eco challenge: $challengeId');
+      final response = await http.delete(
+        Uri.parse('${FirebaseConfig.baseApiUrl}/api/eco-challenges/$challengeId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        print('✅ Deleted eco challenge: $challengeId');
+        return {
+          'success': true,
+          'message': 'Challenge deleted successfully',
+        };
+      } else {
+        print('❌ Failed to delete challenge: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to delete challenge: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error deleting challenge: $e');
+      return {
+        'success': false,
+        'message': 'Error deleting challenge: $e',
+      };
+    }
+  }
+
+  // Toggle challenge status (Admin)
+  static Future<Map<String, dynamic>> toggleChallengeStatus({
+    required String challengeId,
+    required bool isActive,
+  }) async {
+    try {
+      print('🔄 Toggling challenge status: $challengeId to $isActive');
+      final response = await http.put(
+        Uri.parse('${FirebaseConfig.baseApiUrl}/api/eco-challenges/$challengeId'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'isActive': isActive,
+        }),
+      );
+      
+      print('📤 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Toggled challenge status: $challengeId');
+        return {
+          'success': true,
+          'message': 'Challenge status updated successfully',
+        };
+      } else {
+        print('❌ Failed to toggle status: ${response.statusCode}');
+        return {
+          'success': false,
+          'message': 'Failed to toggle status: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error toggling status: $e');
+      return {
+        'success': false,
+        'message': 'Error toggling status: $e',
+      };
+    }
+  }
+
+  // Delete eco challenge (Legacy)
   static Future<Map<String, dynamic>> deleteChallenge({
     required String challengeId,
     required String userId,

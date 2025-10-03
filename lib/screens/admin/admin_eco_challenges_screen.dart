@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/local_eco_challenges_service.dart';
+import '../../services/eco_challenges_service.dart';
 
 class AdminEcoChallengesScreen extends StatefulWidget {
   const AdminEcoChallengesScreen({super.key});
@@ -67,12 +68,24 @@ class _AdminEcoChallengesScreenState extends State<AdminEcoChallengesScreen>
 
   Future<void> _fetchAllChallenges() async {
     try {
-      final challenges = await LocalEcoChallengesService.getAllChallenges();
+      // Fetch from backend API
+      final challenges = await EcoChallengesService.getAllChallenges();
       setState(() {
-        _allChallenges = challenges;
+        _allChallenges = challenges.map((c) => c.toMap()).toList();
       });
+      print('✅ Loaded ${challenges.length} challenges from backend');
     } catch (e) {
-      print('Error fetching challenges: $e');
+      print('❌ Error fetching challenges from backend: $e');
+      // Fallback to local storage
+      try {
+        final localChallenges = await LocalEcoChallengesService.getAllChallenges();
+        setState(() {
+          _allChallenges = localChallenges;
+        });
+        print('⚠️ Loaded ${localChallenges.length} challenges from local storage');
+      } catch (e2) {
+        print('❌ Error fetching local challenges: $e2');
+      }
     }
   }
 
@@ -887,13 +900,44 @@ class _AdminEcoChallengesScreenState extends State<AdminEcoChallengesScreen>
   }
 
   Future<void> _toggleChallengeStatus(Map<String, dynamic> challenge) async {
-    // Toggle challenge active status
+    // Toggle challenge active status via backend API
     try {
-      final challengeId = challenge['id'].toString();
-      await LocalEcoChallengesService.toggleChallengeStatus(challengeId);
-      _loadData(); // Refresh data
+      final challengeId = challenge['challengeId']?.toString() ?? challenge['id'].toString();
+      final currentStatus = challenge['isActive'] ?? true;
+      
+      // Call backend API
+      final result = await EcoChallengesService.toggleChallengeStatus(
+        challengeId: challengeId,
+        isActive: !currentStatus,
+      );
+      
+      if (result['success'] == true) {
+        print('✅ Challenge status toggled in backend');
+        _loadData(); // Refresh data
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Challenge status updated in backend! ✅'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        print('❌ Failed to toggle status: ${result['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: ${result['message']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
-      print('Error toggling challenge status: $e');
+      print('❌ Error toggling challenge status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -919,17 +963,39 @@ class _AdminEcoChallengesScreenState extends State<AdminEcoChallengesScreen>
 
     if (confirmed == true) {
       try {
-        final challengeId = challenge['id'].toString();
-        await LocalEcoChallengesService.deleteChallenge(challengeId);
-        _loadData(); // Refresh data
+        final challengeId = challenge['challengeId']?.toString() ?? challenge['id'].toString();
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Challenge deleted successfully!')),
+        // Call backend API to delete
+        final result = await EcoChallengesService.deleteChallengeAdmin(
+          challengeId: challengeId,
         );
+        
+        if (result['success'] == true) {
+          print('✅ Challenge deleted from backend');
+          _loadData(); // Refresh data
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Challenge deleted from backend! ✅'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          print('❌ Failed to delete: ${result['message']}');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed: ${result['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } catch (e) {
-        print('Error deleting challenge: $e');
+        print('❌ Error deleting challenge: $e');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error deleting challenge: $e')),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -1185,25 +1251,45 @@ class _CreateChallengeDialogState extends State<CreateChallengeDialog> {
     });
 
     try {
-      final challengeData = {
-        'title': _titleController.text,
-        'description': _descriptionController.text,
-        'category': _selectedCategory,
-        'difficultyLevel': _selectedDifficulty,
-        'pointsReward': int.parse(_pointsController.text),
-        'durationDays': int.parse(_durationController.text),
-        'isActive': true,
-      };
-
-      await LocalEcoChallengesService.createChallenge(challengeData);
-      
-      Navigator.pop(context, true); // Return true to indicate success
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Challenge created successfully!')),
+      // Call backend API instead of local storage
+      final result = await EcoChallengesService.createChallengeAdmin(
+        title: _titleController.text,
+        description: _descriptionController.text,
+        category: _selectedCategory,
+        difficulty: _selectedDifficulty,
+        rewardPoints: int.parse(_pointsController.text),
+        durationDays: int.parse(_durationController.text),
+        targetValue: int.parse(_pointsController.text),
+        targetUnit: 'points',
+        iconName: 'eco',
+        colorHex: '#4CAF50',
       );
+
+      if (result['success'] == true) {
+        print('✅ Challenge created successfully in backend');
+        Navigator.pop(context, true); // Return true to indicate success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Challenge created successfully in backend! ✅'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        print('❌ Failed to create challenge: ${result['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create challenge: ${result['message']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
+      print('❌ Error creating challenge: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating challenge: $e')),
+        SnackBar(
+          content: Text('Error creating challenge: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() {
@@ -1576,26 +1662,48 @@ class _EditChallengeDialogState extends State<EditChallengeDialog> {
     });
 
     try {
-      final challengeData = {
-        'id': widget.challenge['id'],
-        'title': _titleController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'category': _selectedCategory,
-        'difficultyLevel': _selectedDifficulty,
-        'pointsReward': int.parse(_pointsController.text),
-        'durationDays': int.parse(_durationController.text),
-        'isActive': widget.challenge['isActive'] ?? true,
-      };
-
-      await LocalEcoChallengesService.updateChallenge(widget.challenge['id'].toString(), challengeData);
+      final challengeId = widget.challenge['challengeId']?.toString() ?? widget.challenge['id'].toString();
       
-      Navigator.pop(context, true); // Return true to indicate success
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Challenge updated successfully!')),
+      // Call backend API to update
+      final result = await EcoChallengesService.updateChallengeAdmin(
+        challengeId: challengeId,
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        category: _selectedCategory,
+        difficulty: _selectedDifficulty,
+        rewardPoints: int.parse(_pointsController.text),
+        durationDays: int.parse(_durationController.text),
+        targetValue: int.parse(_pointsController.text),
+        targetUnit: 'points',
+        iconName: 'eco',
+        colorHex: '#4CAF50',
       );
+
+      if (result['success'] == true) {
+        print('✅ Challenge updated in backend');
+        Navigator.pop(context, true); // Return true to indicate success
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Challenge updated in backend! ✅'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        print('❌ Failed to update: ${result['message']}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: ${result['message']}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
+      print('❌ Error updating challenge: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating challenge: $e')),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       setState(() {
