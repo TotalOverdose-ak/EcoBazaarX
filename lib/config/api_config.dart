@@ -11,13 +11,13 @@ class ApiConfig {
   /// Local development backend URL
   static const String LOCAL_BASE_URL = 'http://localhost:8080/api';
   
-  /// Production backend URL (Railway/Cloud deployment)
-  /// TODO: Update with your Railway production URL
-  static const String PROD_BASE_URL = 'https://your-railway-app.railway.app/api';
+  /// Production backend URL (Render deployment)
+  /// Update this URL after deploying backend on Render
+  static const String PROD_BASE_URL = 'https://ecobazaar-backend.onrender.com/api';
   
   /// Current active environment
-  /// Change to PROD_BASE_URL for production
-  static const String BASE_URL = LOCAL_BASE_URL;
+  /// Using PROD_BASE_URL for Firebase deployment
+  static const String BASE_URL = PROD_BASE_URL;
   
   // ============================================================
   // API ENDPOINTS
