@@ -81,4 +81,4 @@ This project is licensed under the [MIT License](./LICENSE).
 | Role        | Name | GitHub |
 |-------------|------|--------|
 | 🛠️ Owner | <img src="https://github.com/AkashKeote.png" width="60"/> | [Akash Keote](https://github.com/AkashKeote) |
-| 👤 Contributor | <img src="https://github.com/ChaitanyaBarappadi.png" width="60"/> | [Chaitanya Barappadi](https://github.com/ChaitanyaBarappadi) |
+| 👤 Contributor | <img src="https://github.com/ChaitanyaBarappadi.png" width="60"/> | [Chaitanya Barappadi](https://github.com/chaitanya-aaa) |
