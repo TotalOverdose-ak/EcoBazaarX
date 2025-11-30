@@ -15,6 +15,12 @@ The project includes a complete e-commerce workflow with authentication, role-ba
 | 👤 Contributor | <img src="https://github.com/chaitanya-aaa.png" width="60"/> | [Chaitanya Barappadi](https://github.com/chaitanya-aaa) |
 
 ---
+## 💻 Source Code
+
+- **Frontend:** [EcoBazaarX Frontend](https://github.com/AkashKeote/EcoBazaarX)  
+- **Backend:** [EcoBazaarX Backend](https://github.com/AkashKeote/Backend-Springboot)
+ 
+---
 ## 💡 Key Features
 
 ### 🌿 Carbon Footprint Awareness
