@@ -86,6 +86,13 @@ mvn spring-boot:run
 ## Backend starts at
 http://localhost:8080
 
+---
+## 🔗 Live Demo & Code
+
+- 🌐 **Web App:** [EcoBazaarX Web App](https://ecobazzarx.web.app)  
+- 🛠 **Backend API:** [EcoBazaarX Backend API](https://backend-springboot-ymgn.onrender.com)  
+---
+
 ## 📄 License
 This project is licensed under the [MIT License](./LICENSE).
 
