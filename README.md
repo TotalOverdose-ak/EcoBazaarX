@@ -11,7 +11,7 @@ The project includes a complete e-commerce workflow with authentication, role-ba
 
 | Role        | Name | GitHub |
 |-------------|------|--------|
-| 🛠️ Owner | <img src="https://github.com/AkashKeote.png" width="60"/> | [Akash Keote](https://github.com/AkashKeote) |
+| 🛠️ Owner | <img src="https://avatars.githubusercontent.com/u/170916476?v=4" width="60"/> | [Akash Keote](https://github.com/AkashKeote) |
 | 👤 Contributor | <img src="https://github.com/chaitanya-aaa.png" width="60"/> | [Chaitanya Barappadi](https://github.com/chaitanya-aaa) |
 
 ---
